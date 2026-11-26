@@ -4,9 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8f8e54b6-cb38-4085-8f12-3d38aa3c4235" name="Changes" comment="added readme and agents">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="8f8e54b6-cb38-4085-8f12-3d38aa3c4235" name="Changes" comment="Implemented pedestrian routing for Sofia with OSMnx and NetworkX">
       <change beforePath="$PROJECT_DIR$/src/gtfs_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gtfs_loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/transfers.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/transfers.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -161,7 +162,23 @@
       <option name="project" value="LOCAL" />
       <updated>1795706122255</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="Implemented GTFS schedule loading">
+      <option name="closed" value="true" />
+      <created>1795709226788</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1795709226788</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Implemented pedestrian routing for Sofia with OSMnx and NetworkX">
+      <option name="closed" value="true" />
+      <created>1795709493059</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1795709493059</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -171,6 +188,8 @@
     <MESSAGE value="Initial commit" />
     <MESSAGE value="added gitignore" />
     <MESSAGE value="added readme and agents" />
-    <option name="LAST_COMMIT_MESSAGE" value="added readme and agents" />
+    <MESSAGE value="Implemented GTFS schedule loading" />
+    <MESSAGE value="Implemented pedestrian routing for Sofia with OSMnx and NetworkX" />
+    <option name="LAST_COMMIT_MESSAGE" value="Implemented pedestrian routing for Sofia with OSMnx and NetworkX" />
   </component>
 </project>

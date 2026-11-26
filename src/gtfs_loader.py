@@ -2,6 +2,7 @@
 
 import csv
 import re
+from dataclasses import replace
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
@@ -171,7 +172,11 @@ def load_schedule(gtfs_directory: Path, service_date: date, *,
                 raise ValueError("arrival_time and departure_time must be supplied together")
             if arrival is None and row.get("timepoint") == "1":
                 raise ValueError("missing times for an exact timepoint")
-            calls[key][sequence] = StopTime(stop, sequence, arrival, departure)
+            calls[key][sequence] = StopTime(
+                stop, sequence, arrival, departure,
+                can_alight=row.get("drop_off_type") != "1",
+                can_board=row.get("pickup_type") != "1",
+            )
 
     result = []
     filtered = start_seconds != 0 or end_seconds is not None
@@ -180,6 +185,9 @@ def load_schedule(gtfs_directory: Path, service_date: date, *,
         if not ordered or ordered[0].arrival_seconds is None or ordered[-1].departure_seconds is None:
             raise GTFSValidationError(f"stop_times.txt: trip {key!r} needs timed first and last stops")
         previous = 0
+        # Preserve terminal restrictions even when a query clips the trip.
+        ordered[0] = replace(ordered[0], can_alight=False)
+        ordered[-1] = replace(ordered[-1], can_board=False)
         selected = []
         for call in ordered:
             arrival, departure = call.arrival_seconds, call.departure_seconds

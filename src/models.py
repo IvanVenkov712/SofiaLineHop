@@ -27,6 +27,8 @@ class StopTime:
     stop_sequence: int
     arrival_seconds: int | None
     departure_seconds: int | None
+    can_alight: bool = True
+    can_board: bool = True
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,21 @@ class TransferLeg:
 class TransferConnection:
     incoming: TransferLeg
     outgoing: TransferLeg
+
+
+@dataclass(frozen=True, order=True)
+class ScheduledEvent:
+    """A scheduled arrival or departure, ordered by time on the service day."""
+
+    time_seconds: int
+    trip_id: str
+    stop_sequence: int
+
+
+@dataclass(frozen=True)
+class TransferEvents:
+    arrivals: tuple[ScheduledEvent, ...]
+    departures: tuple[ScheduledEvent, ...]
 
 
 @dataclass(frozen=True)
