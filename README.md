@@ -205,14 +205,32 @@ input yields an empty mapping.
 
 ## Optimization
 
-The system evaluates alternative scenarios by applying
-configurable time offsets to transport schedules.
+`optimize_offsets` shifts outgoing visits at the selected connection in memory.
+A negative offset moves departures earlier. The search starts at the minimum
+and advances by the step up to the maximum, always including the original schedule.
 
-Each scenario is simulated and compared against the original
-schedule using selected performance metrics.
+```python
+from src.optimization import optimize_offsets
+from src.simulation import DelayModel
 
-Optimization is limited to selected transfer connections,
-rather than the entire public transport network.
+result = optimize_offsets(
+    schedule, connection, walking_route, parameters,
+    min_offset_seconds=-120, max_offset_seconds=120, step_seconds=30,
+    criterion="mean_waiting_seconds", arrival_delay=DelayModel(0, 60),
+    repetitions=100, seed=42,
+)
+baseline = result.scenarios[0]
+best = result.scenarios[result.best_offset_seconds]
+```
+
+Every scenario uses the same incoming arrivals, window, and per-visit delay
+draws. Metrics pool attempts across repetitions. To qualify, an offset must
+complete at least as many transfers as the original schedule.
+The search minimizes `mean_waiting_seconds`, `median_waiting_seconds`,
+`maximum_waiting_seconds`, `mean_total_duration_seconds`, or `incomplete_rate`,
+or maximizes `successful_rate`. Equal scores favor the smallest absolute offset,
+then the earlier departure. If all eligible scores are undefined, the original
+schedule wins. All evaluated offsets remain available in `result.scenarios`.
 
 ## Limitations
 

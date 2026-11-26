@@ -1,14 +1,14 @@
 """Scheduled and stochastic simulation of one transfer connection."""
 
 from bisect import bisect_left
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import ceil, isfinite
 from operator import itemgetter
 from random import Random
 
 from .models import (
     Schedule, ScheduledEvent, SimulationParameters, StochasticTransferOutcome,
-    TransferConnection, TransferOutcome, WalkingRoute,
+    TransferConnection, TransferEvents, TransferOutcome, WalkingRoute,
 )
 from .transfers import get_transfer_events
 
@@ -84,6 +84,21 @@ def simulate_stochastic_transfers(
     Sample each event once per repetition. SimulationParameters delays are fixed
     additions to the sampled delays. See README for cohort and horizon semantics.
     """
+    events = get_transfer_events(schedule, connection, parameters.start_seconds, parameters.end_seconds)
+    return list(simulate_event_runs(events, walking_route, parameters, arrival_delay,
+                                    departure_delay, repetitions, seed))
+
+
+def simulate_event_runs(
+    events: TransferEvents, walking_route: WalkingRoute, parameters: SimulationParameters,
+    arrival_delay: DelayModel, departure_delay: DelayModel, repetitions: int,
+    seed: int | None, outgoing_offset_seconds: int = 0,
+):
+    """Simulate a fixed arrival cohort and a common pool of candidate departures.
+
+    Draw delays for the whole pool so moving a visit across a window boundary
+    preserves every other visit's draw when replaying the seed.
+    """
     if type(repetitions) is not int or repetitions < 1:
         raise ValueError("repetitions must be a positive integer")
     for base in (parameters.arrival_delay_seconds, parameters.departure_delay_seconds):
@@ -92,18 +107,22 @@ def simulate_stochastic_transfers(
 
     walk = walking_route.duration_seconds
     required = _required_seconds(walk, parameters.minimum_buffer_seconds)
-    events = get_transfer_events(schedule, connection, parameters.start_seconds, parameters.end_seconds)
-    scheduled = [(event.time_seconds, event) for event in events.departures]
+    shifted = {
+        event: replace(event, time_seconds=event.time_seconds + outgoing_offset_seconds)
+        for event in events.departures
+        if parameters.start_seconds <= event.time_seconds + outgoing_offset_seconds < parameters.end_seconds
+    }
+    scheduled = [(event.time_seconds, event) for event in shifted.values()]
     intentions = [_first_departure(scheduled, arrival.time_seconds + required) for arrival in events.arrivals]
 
     rng = Random(seed)
-    runs = []
     for _ in range(repetitions):
-        departure_times = {
-            event: event.time_seconds + parameters.departure_delay_seconds
-            + rng.randint(departure_delay.minimum_seconds, departure_delay.maximum_seconds)
-            for event in events.departures
-        }
+        departure_times = {}
+        for event in events.departures:
+            delay = rng.randint(departure_delay.minimum_seconds, departure_delay.maximum_seconds)
+            if event in shifted:
+                visit = shifted[event]
+                departure_times[visit] = visit.time_seconds + parameters.departure_delay_seconds + delay
         departures = sorted((time, event) for event, time in departure_times.items()
                             if time < parameters.end_seconds)
         outcomes = []
@@ -114,5 +133,4 @@ def simulate_stochastic_transfers(
             intended = intention[1] if intention else None
             missed = departure_times[intended] < actual + required if intended else None
             outcomes.append(StochasticTransferOutcome(transfer, actual, intended, missed))
-        runs.append(outcomes)
-    return runs
+        yield outcomes

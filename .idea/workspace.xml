@@ -4,11 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8f8e54b6-cb38-4085-8f12-3d38aa3c4235" name="Changes" comment="Implemented deterministic transfer simulation">
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/simulation.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/simulation.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_simulation.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_simulation.py" afterDir="false" />
+    <list default="true" id="8f8e54b6-cb38-4085-8f12-3d38aa3c4235" name="Changes" comment="Implemented the metrics in the analytics module">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -39,23 +36,23 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0000000000000502" />
-      <entry key="MS500" value="1.0032463106050806" />
-      <entry key="S2" value="1.676992507954789" />
-      <entry key="S5" value="3.6655976509417543" />
-      <entry key="S10" value="5.51245066226861" />
-      <entry key="S30" value="7.573942985060043" />
-      <entry key="S60" value="8.246942256112112" />
-      <entry key="M2" value="8.612831191330578" />
-      <entry key="M5" value="8.842492972244273" />
-      <entry key="M10" value="8.920799191781615" />
-      <entry key="M15" value="8.947099508062113" />
-      <entry key="M30" value="8.973499638098822" />
-      <entry key="H1" value="8.986737263861691" />
-      <entry key="H2" value="8.993365489851936" />
-      <entry key="H4" value="8.996681958995595" />
-      <entry key="D1" value="8.999446883974063" />
-      <entry key="W1" value="8.999920980750325" />
+      <entry key="MS100" value="1.0022752419107859" />
+      <entry key="MS500" value="1.3592274276456884" />
+      <entry key="S2" value="2.8415992845407043" />
+      <entry key="S5" value="5.064663780991347" />
+      <entry key="S10" value="7.439153884790979" />
+      <entry key="S30" value="10.562800483033316" />
+      <entry key="S60" value="11.716726981959445" />
+      <entry key="M2" value="12.87272131096616" />
+      <entry key="M5" value="15.867581329508655" />
+      <entry key="M10" value="18.469060092105167" />
+      <entry key="M15" value="19.707863095928754" />
+      <entry key="M30" value="21.200230666210782" />
+      <entry key="H1" value="22.057904531281228" />
+      <entry key="H2" value="22.51788551723603" />
+      <entry key="H4" value="22.756109074161188" />
+      <entry key="D1" value="22.95895212628792" />
+      <entry key="W1" value="22.99412616037423" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -77,23 +74,23 @@
       <entry key="W1" value="0.0" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.1808866269537315E-10" />
-      <entry key="MS500" value="0.013521302803833856" />
-      <entry key="S2" value="0.9818357379050628" />
-      <entry key="S5" value="3.2747399411509712" />
-      <entry key="S10" value="5.288549316886286" />
-      <entry key="S30" value="7.491500064334096" />
-      <entry key="S60" value="8.204628023159533" />
-      <entry key="M2" value="8.591391000639657" />
-      <entry key="M5" value="8.83384763973451" />
-      <entry key="M10" value="8.916464870623285" />
-      <entry key="M15" value="8.944207362248932" />
-      <entry key="M30" value="8.972052263897913" />
-      <entry key="H1" value="8.986013251041784" />
-      <entry key="H2" value="8.993003401962572" />
-      <entry key="H4" value="8.996500894674858" />
-      <entry key="D1" value="8.99941670375674" />
-      <entry key="W1" value="8.999916669221383" />
+      <entry key="MS100" value="0.9096568041851603" />
+      <entry key="MS500" value="1.3342143741211077" />
+      <entry key="S2" value="2.723558699646973" />
+      <entry key="S5" value="4.917146336577954" />
+      <entry key="S10" value="7.329056980113573" />
+      <entry key="S30" value="10.514437319886362" />
+      <entry key="S60" value="11.690634531550986" />
+      <entry key="M2" value="12.858011946312418" />
+      <entry key="M5" value="15.859264753277596" />
+      <entry key="M10" value="18.463790936448294" />
+      <entry key="M15" value="19.703994979849536" />
+      <entry key="M30" value="21.198082019220433" />
+      <entry key="H1" value="22.05676845566147" />
+      <entry key="H2" value="22.517300910444543" />
+      <entry key="H4" value="22.755812479106535" />
+      <entry key="D1" value="22.95890208464167" />
+      <entry key="W1" value="22.9941189964768" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -195,7 +192,23 @@
       <option name="project" value="LOCAL" />
       <updated>1795710004240</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="Added simulate_stochastic_transfers">
+      <option name="closed" value="true" />
+      <created>1795710242784</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1795710242784</updated>
+    </task>
+    <task id="LOCAL-00009" summary="Implemented the metrics in the analytics module">
+      <option name="closed" value="true" />
+      <created>1795710497969</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1795710497969</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -209,6 +222,8 @@
     <MESSAGE value="Implemented pedestrian routing for Sofia with OSMnx and NetworkX" />
     <MESSAGE value="mplemented find_transfers and get_transfer_events in transfers.py." />
     <MESSAGE value="Implemented deterministic transfer simulation" />
-    <option name="LAST_COMMIT_MESSAGE" value="Implemented deterministic transfer simulation" />
+    <MESSAGE value="Added simulate_stochastic_transfers" />
+    <MESSAGE value="Implemented the metrics in the analytics module" />
+    <option name="LAST_COMMIT_MESSAGE" value="Implemented the metrics in the analytics module" />
   </component>
 </project>
