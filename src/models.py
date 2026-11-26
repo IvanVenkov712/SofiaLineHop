@@ -2,7 +2,7 @@
 and may exceed 24 hours. Identifiers retain their original GTFS strings.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
 
@@ -121,10 +121,7 @@ class TransferOutcome:
 
 @dataclass(frozen=True)
 class TransferMetrics:
-    """Time statistics cover successes. Rates are fractions of all attempts.
-
-    A statistic is None when its sample is empty.
-    """
+    """Times cover completed transfers. See src.analytics for rate denominators."""
 
     mean_waiting_seconds: float | None
     median_waiting_seconds: float | None
@@ -132,6 +129,15 @@ class TransferMetrics:
     mean_total_duration_seconds: float | None
     successful_rate: float | None
     missed_rate: float | None
+    waiting_std_seconds: float | None = None
+    waiting_percentiles_seconds: dict[float, float | None] = field(default_factory=dict)
+    missed_connection_rate: float | None = None
+
+    @property
+    def incomplete_rate(self) -> float | None:
+        """Fraction of attempts without a boarding, historically called missed_rate."""
+        return self.missed_rate
+
 
 @dataclass(frozen=True)
 class StochasticTransferOutcome:

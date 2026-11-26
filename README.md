@@ -177,12 +177,31 @@ events used.
 
 ## Performance Metrics
 
-- Mean waiting time.
-- Median waiting time.
-- Maximum waiting time.
-- Total transfer duration.
-- Successful transfer rate.
-- Missed transfer rate.
+Pass scheduled outcomes or one stochastic repetition to
+`src.analytics.summarize_transfers`. To pool repetitions with equal weight per
+attempt, pass `itertools.chain.from_iterable(runs)`.
+
+| Metric | Definition |
+| --- | --- |
+| Mean waiting time | Sum of waits divided by completed transfers. Each wait runs from the end of walking to the actual departure boarded, including the transfer buffer. |
+| Median waiting time | Middle completed wait in sorted order, averaging the middle pair for an even count. |
+| Maximum waiting time | Longest completed wait. |
+| Waiting time standard deviation | Population standard deviation of completed waits, dividing the sum of squared deviations by the number completed before taking the square root. One completion gives zero. |
+| Waiting time percentiles | Linear interpolation between sorted completed waits at zero-based rank `(n - 1) * p / 100`. The default levels are 50, 90 and 95. |
+| Mean total transfer duration | Sum of elapsed times from actual arrival to boarded departure divided by completed transfers. |
+| Missed connection rate | Intended vehicles missed divided by attempts with an intended vehicle. Includes a miss even when a later vehicle is boarded. For scheduled simulations, each feasible intended vehicle is caught. |
+| Incomplete transfer rate | Attempts with no boarding before the horizon divided by all attempts. Available as `incomplete_rate` and the original `missed_rate` field. |
+| Successful transfer rate | Completed transfers divided by all attempts. |
+
+Times are in seconds and rates are fractions. Incomplete attempts contribute
+only to the applicable rates. An empty sample or zero denominator yields
+`None`, including at each requested percentile.
+
+`summarize_transfers_by_interval(outcomes, interval_seconds=900)` returns the
+same metrics for each occupied 15-minute interval. Keys are interval starts
+in scheduled arrival seconds from the GTFS service-day origin, including times
+beyond 24 hours. Each interval includes its start and excludes its end. Empty
+input yields an empty mapping.
 
 ## Optimization
 
