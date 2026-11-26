@@ -1,11 +1,11 @@
 
-# TransferTwin
+# SofiaLineHop
 
 Digital twin for public transport transfers in Sofia.
 
 ## Overview
 
-TransferTwin is an urban digital twin prototype designed to model,
+SofiaLineHop is an urban digital twin prototype designed to model,
 simulate and analyze public transport transfers in Sofia.
 
 The system combines public transport schedules with the pedestrian

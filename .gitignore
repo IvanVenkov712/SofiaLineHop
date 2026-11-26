@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.idea/
+
+/data/raw/*
+!/data/raw/gtfs/
+/data/raw/gtfs/*
+!/data/raw/gtfs/.gitkeep
+/data/processed/*
+!/data/processed/.gitkeep
