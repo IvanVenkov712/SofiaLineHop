@@ -114,3 +114,31 @@ The Python entry point `optimize_offsets` accepts integer-second bounds and step
 - **All directions** pools visits on the selected line at the chosen stop. Where the feed omits direction IDs, the app cannot distinguish directions. A traveler with a particular destination may have fewer boarding options.
 - The end of the observation window affects completion rates. A passenger who could board just after the horizon counts as incomplete. Waiting-time summaries omit such passengers.
 - The search evaluates one connection over one time window. It does not model downstream transfers, fleet circulation or network-wide feasibility. The measured improvements are hypothetical.
+
+## GTFS Realtime Trip Updates
+
+The Python adapter reads Sofia's GTFS Realtime 2.0 full snapshots. Save one alongside the corresponding static timetable to replay an experiment offline. Use the full service-day schedule so repeated stops can be identified reliably.
+
+```python
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from src.gtfs_loader import load_schedule
+from src.gtfs_realtime import Snapshot, fetch_snapshot, match_updates
+
+snapshot = fetch_snapshot()
+path = Path("data/raw/realtime") / f"{snapshot.source_timestamp}.json"
+snapshot.save(path)
+
+replay = Snapshot.load(path)
+day = datetime.fromtimestamp(replay.source_timestamp, ZoneInfo("Europe/Sofia")).date()
+schedule = load_schedule(Path("data/raw/gtfs"), day)
+trips, issues = match_updates(replay, schedule)
+```
+
+The archive contains the original protobuf bytes and the retrieval timestamp. Matching returns explicit updates by static trip ID and diagnostics for rejected records. Each reported visit carries its static stop sequence, relationship, and separate arrival and departure predictions. Event timestamps are Unix seconds. Signed delays use the scheduled event where available. When both time and delay are reported, the absolute time takes precedence and the reported delay is retained separately. Omitted stops have no explicit prediction in this adapter.
+
+Fetching raises `RealtimeError` on network, decoding or freshness failures. Feed and trip freshness default to 90 seconds. Replay evaluates freshness at the original retrieval time. Supply `as_of=int(time.time())` when checking a saved snapshot for live use. Around midnight, also match the previous day's full schedule for trips with after-midnight stop times. Explicit trip dates take priority. For undated trips with absolute predictions the matcher selects the nearest service day by comparing predicted and scheduled visits. Without such predictions it uses the feed's Sofia calendar date.
+
+The offline tests construct protobuf messages locally. [GTFS Realtime reference](https://gtfs.org/documentation/realtime/reference/)
