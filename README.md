@@ -166,7 +166,8 @@ the horizon. Passengers board the earliest actual departure they can reach
 with the walking time and buffer, strictly before the end of the window.
 
 For each attempt, `transfer.successful` reports completion within the horizon.
-`intended_departure` is the first feasible departure on the original timetable.
+`intended_departure` is the first feasible departure on the scenario timetable,
+after applying its schedule offset and before adding vehicle delays.
 `missed_intended_connection` is true if that vehicle actually departed before
 the passenger was ready, and is `None` if there was no scheduled connection.
 A passenger can miss the intended vehicle and still board a later one. Conversely,
@@ -238,6 +239,9 @@ schedule wins. All evaluated offsets remain available in `result.scenarios`.
 - Vehicle movement is modeled rather than tracked in real time.
 - Passenger demand and vehicle capacity are not modeled.
 - Walking times and delays are based on configurable assumptions.
+- Walking distances cover the pedestrian path between snapped network nodes.
+  The simulation omits stop-to-node access distances, GTFS station pathways,
+  and operator transfer rules from `transfers.txt`.
 - Optimization results represent hypothetical scenarios, not
   operational recommendations for immediate implementation.
 

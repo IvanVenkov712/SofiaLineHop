@@ -21,7 +21,7 @@ class Route:
     long_name: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class StopTime:
     stop_id: str
     stop_sequence: int

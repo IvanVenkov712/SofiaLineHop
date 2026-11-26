@@ -44,6 +44,15 @@ def test_schedule_records(feed):
     ]
 
 
+def test_unnamed_station_nodes_and_boarding_areas(feed):
+    (feed / "stops.txt").write_text(
+        "stop_id,stop_name,stop_lat,stop_lon,location_type\n"
+        "001,Square,42.7,23.3,0\n002,Park,42.6,23.4,0\n"
+        "node,,42.7,23.3,3\narea,,42.6,23.4,4\n"
+    )
+    assert len(load_schedule(feed, MONDAY).trips) == 1
+
+
 @pytest.mark.parametrize(("day", "expected"), [
     (TUESDAY, ["02"]), (date(2026, 11, 25), []), (date(2026, 11, 30), ["01"]),
     (date(2026, 11, 16), []), (date(2026, 12, 7), []),
@@ -90,6 +99,7 @@ def test_half_open_overnight_window(feed):
     ("calendar_dates", "special,20261124", "weekly,20261124", "duplicate"),
     ("stops", "42.7", "nan", "coordinates"),
     ("stops", "002,Park", "001,Park", "duplicate"),
+    ("stops", "002,Park", "002,", "stop_name"),
     ("stops", "stop_lat", "latitude", "missing columns"),
     ("routes", "01,72", "01,", "route name"),
     ("trips", "weekly,01,0", "missing,01,0", "service_id"),

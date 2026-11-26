@@ -2,9 +2,11 @@
 
 import csv
 import re
+from collections import defaultdict
 from dataclasses import replace
 from contextlib import contextmanager
 from datetime import date
+from functools import lru_cache
 from pathlib import Path
 
 from .models import Route, Schedule, Stop, StopTime, Trip
@@ -47,6 +49,7 @@ def _table(directory, name, columns, *, nullable=()):
             raise GTFSValidationError(f"{name} line {reader.line_num}: {exc}") from exc
 
 
+@lru_cache(maxsize=2048)
 def _date(value):
     if not re.fullmatch(r"[0-9]{8}", value):
         raise ValueError(f"invalid GTFS date {value!r}")
@@ -70,12 +73,13 @@ def _services(directory, day):
         raise GTFSValidationError("expected calendar.txt or calendar_dates.txt")
 
     if (directory / "calendar_dates.txt").is_file():
-        seen = set()
+        seen_dates = defaultdict(set)
         with _table(directory, "calendar_dates.txt", ("service_id", "date", "exception_type")) as rows:
             for row in rows:
                 service, on = row["service_id"], _date(row["date"])
-                _unique(seen, (service, on), "calendar exception")
-                seen.add((service, on))
+                if on in seen_dates[service]:
+                    raise ValueError(f"duplicate calendar exception {(service, on)!r}")
+                seen_dates[service].add(on)
                 known.add(service)
                 kind = row["exception_type"]
                 if kind not in ("1", "2"):
@@ -95,10 +99,13 @@ def _unique(existing, key, field):
 
 def _stops(directory):
     stops = {}
-    with _table(directory, "stops.txt", ("stop_id", "stop_name", "stop_lat", "stop_lon")) as rows:
+    with _table(directory, "stops.txt", ("stop_id", "stop_name", "stop_lat", "stop_lon"),
+                nullable=("stop_name",)) as rows:
         for row in rows:
             key = row["stop_id"]
             _unique(stops, key, "stop_id")
+            if not row["stop_name"].strip() and row.get("location_type") not in ("3", "4"):
+                raise ValueError("missing stop_name")
             lat, lon = float(row["stop_lat"]), float(row["stop_lon"])
             if not (-90 <= lat <= 90 and -180 <= lon <= 180):
                 raise ValueError(f"invalid coordinates for stop {key!r}")
@@ -119,6 +126,7 @@ def _routes(directory):
     return routes
 
 
+@lru_cache(maxsize=65536)
 def _seconds(value):
     if not value:
         return None
@@ -173,7 +181,7 @@ def load_schedule(gtfs_directory: Path, service_date: date, *,
             if arrival is None and row.get("timepoint") == "1":
                 raise ValueError("missing times for an exact timepoint")
             calls[key][sequence] = StopTime(
-                stop, sequence, arrival, departure,
+                stops[stop].stop_id, sequence, arrival, departure,
                 can_alight=row.get("drop_off_type") != "1",
                 can_board=row.get("pickup_type") != "1",
             )
@@ -181,7 +189,8 @@ def load_schedule(gtfs_directory: Path, service_date: date, *,
     result = []
     filtered = start_seconds != 0 or end_seconds is not None
     for key, (route, direction, service) in trips.items():
-        ordered = [calls[key][seq] for seq in sorted(calls[key])]
+        trip_calls = calls.pop(key)
+        ordered = [trip_calls[seq] for seq in sorted(trip_calls)]
         if not ordered or ordered[0].arrival_seconds is None or ordered[-1].departure_seconds is None:
             raise GTFSValidationError(f"stop_times.txt: trip {key!r} needs timed first and last stops")
         previous = 0

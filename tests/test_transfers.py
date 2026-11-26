@@ -3,8 +3,12 @@ from datetime import date
 import networkx as nx
 import pytest
 
+from src.analytics import summarize_transfers, summarize_transfers_by_interval
 from src.gtfs_loader import load_schedule
-from src.models import ScheduledEvent
+from src.models import ScheduledEvent, SimulationParameters
+from src.optimization import optimize_offsets
+from src.pedestrian_network import find_walking_route
+from src.simulation import DelayModel, simulate_stochastic_transfers, simulate_transfers
 from src.transfers import find_transfers, get_transfer_events
 
 
@@ -89,3 +93,43 @@ def test_service_day_events(feed, graph):
 def test_invalid_distance(feed, graph, limit):
     with pytest.raises(ValueError, match="distance"):
         candidates(load_schedule(feed, DAY), graph, limit)
+
+
+@pytest.mark.parametrize("arrival_delay", [0, 61])
+def test_overnight_transfer_workflow(feed, graph, arrival_delay):
+    schedule = load_schedule(feed, DAY)
+    pair = next(c for c in candidates(schedule, graph, 100)
+                if c.incoming.stop_id == "A" and c.outgoing.stop_id == "B")
+    walk = find_walking_route(graph, schedule.stops[pair.incoming.stop_id],
+                              schedule.stops[pair.outgoing.stop_id], walking_speed_mps=2)
+    assert walk.node_ids == (0, 2, 1)
+    assert (walk.distance_meters, walk.duration_seconds) == (100, 50)
+    parameters = SimulationParameters(90000, 90180, minimum_buffer_seconds=10)
+    args = schedule, pair, walk, parameters
+
+    # Visits at 25:00 and 25:02. Only the first can walk 50 s, allow 10 s
+    # for boarding, and catch the 25:02 departure before the 25:03 horizon.
+    scheduled = simulate_transfers(*args)
+    assert [(o.successful, o.waiting_seconds, o.total_duration_seconds) for o in scheduled] == [
+        (True, 70, 120), (False, None, None)]
+    delays = DelayModel(arrival_delay, arrival_delay)
+    outcomes, = simulate_stochastic_transfers(*args, arrival_delay=delays)
+    metrics = summarize_transfers(outcomes)
+    bins = summarize_transfers_by_interval(outcomes, 60)
+    assert list(bins) == [90000, 90120]
+    assert bins[90120].incomplete_rate == 1
+    result = optimize_offsets(*args, min_offset_seconds=-60, max_offset_seconds=0,
+                              step_seconds=60, arrival_delay=delays)
+    assert result.scenarios[0] == metrics
+    if arrival_delay:
+        # Ready at 25:02:01, one second after the intended vehicle departs.
+        assert metrics.missed_connection_rate == metrics.incomplete_rate == 1
+        assert metrics.mean_waiting_seconds is None
+        assert result.best_offset_seconds == 0
+    else:
+        assert metrics == summarize_transfers(scheduled)
+        assert metrics.successful_rate == 0.5
+        assert result.best_offset_seconds == -60
+        best = result.scenarios[-60]
+        assert (best.mean_waiting_seconds, best.mean_total_duration_seconds) == (10, 60)
+        assert best.successful_rate == 0.5
