@@ -7,10 +7,12 @@ from operator import itemgetter
 from random import Random
 
 from .models import (
-    Schedule, ScheduledEvent, SimulationParameters, StochasticTransferOutcome,
+    RealtimeTransferOutcome, Schedule, ScheduledEvent, SimulationParameters, StochasticTransferOutcome,
     TransferConnection, TransferEvents, TransferOutcome, WalkingRoute,
 )
 from .transfers import get_transfer_events
+from .realtime_schedule import RealtimeSchedule
+from .gtfs_realtime import service_day_origin
 
 
 @dataclass(frozen=True)
@@ -40,8 +42,7 @@ def _first_departure(departures: list[tuple[int, ScheduledEvent]], ready: float)
     return departures[index] if index < len(departures) else None
 
 
-def _match(arrival, actual_arrival, departures, walk, required):
-    departure = _first_departure(departures, actual_arrival + required)
+def _match(arrival, actual_arrival, departure, walk):
     if departure is None:
         return TransferOutcome(arrival.trip_id, None, False, None, None, arrival.time_seconds)
     actual_departure, event = departure
@@ -51,13 +52,16 @@ def _match(arrival, actual_arrival, departures, walk, required):
 
 
 def simulate_transfers(
-    schedule: Schedule,
+    schedule: Schedule | RealtimeSchedule,
     connection: TransferConnection,
     walking_route: WalkingRoute,
     parameters: SimulationParameters,
     outgoing_offset_seconds: int = 0,
-) -> list[TransferOutcome]:
-    """Match each scheduled arrival to its first feasible in-window departure."""
+) -> list[TransferOutcome] | list[RealtimeTransferOutcome]:
+    """Run a published timetable or a deterministic realtime-informed scenario."""
+    if isinstance(schedule, RealtimeSchedule):
+        return simulate_stochastic_transfers(schedule, connection, walking_route, parameters,
+                                             outgoing_offset_seconds=outgoing_offset_seconds)[0]
     walk = walking_route.duration_seconds
     required = _required_seconds(walk, parameters.minimum_buffer_seconds)
     if parameters.arrival_delay_seconds or parameters.departure_delay_seconds or outgoing_offset_seconds:
@@ -65,11 +69,63 @@ def simulate_transfers(
 
     events = get_transfer_events(schedule, connection, parameters.start_seconds, parameters.end_seconds)
     departures = [(event.time_seconds, event) for event in events.departures]
-    return [_match(event, event.time_seconds, departures, walk, required) for event in events.arrivals]
+    return [_match(event, event.time_seconds,
+                   _first_departure(departures, event.time_seconds + required), walk)
+            for event in events.arrivals]
+
+
+@dataclass(frozen=True)
+class RealtimeEvents(TransferEvents):
+    # Keys retain published times and visit identity throughout the simulation.
+    arrival_conditions: dict[ScheduledEvent, tuple[int | None, str]]
+    departure_conditions: dict[ScheduledEvent, tuple[int | None, str]]
+
+
+def _realtime_events(schedule, connection, parameters, offsets):
+    start, end = parameters.start_seconds, parameters.end_seconds
+    origin = service_day_origin(schedule.baseline.service_date)
+    # A local forecast experiment starts near capture and spans at most the
+    # next hour. Epoch comparison also works for archived and 24+ hour trips.
+    if not (0 <= start < end and start >= schedule.source_timestamp - origin - 90
+            and end <= schedule.source_timestamp - origin + 3600):
+        raise ValueError("realtime window must fall within 90 s before to 1 h after the snapshot")
+
+    def conditions(leg, arriving):
+        result = {}
+        for trip in schedule.trips.values():
+            if trip.scheduled.route_id != leg.route_id:
+                continue
+            if leg.direction_id is not None and trip.scheduled.direction_id != leg.direction_id:
+                continue
+            for visit in trip.visits:
+                call = visit.scheduled
+                if call.stop_id != leg.stop_id or not (call.can_alight if arriving else call.can_board):
+                    continue
+                timing = visit.arrival if arriving else visit.departure
+                published = timing.scheduled_seconds
+                if published is None:
+                    continue
+                effective = timing.effective_seconds
+                if arriving:
+                    eligible = start <= published < end
+                else:
+                    eligible = any(start <= t + shift < end for t in (published, effective)
+                                   if t is not None for shift in offsets)
+                if eligible:
+                    key = ScheduledEvent(published, trip.scheduled.trip_id, call.stop_sequence)
+                    source = visit.relationship if timing.source == "suppressed" else timing.source
+                    result[key] = effective, source
+        return result
+
+    arrivals = conditions(connection.incoming, True)
+    departures = conditions(connection.outgoing, False)
+    return RealtimeEvents(tuple(sorted(arrivals)), tuple(sorted(departures)), arrivals, departures)
 
 
 def offset_event_pool(schedule, connection, parameters, offsets) -> TransferEvents:
     """Keep the arrival cohort fixed and include departures that can shift into view."""
+    if isinstance(schedule, RealtimeSchedule):
+        return _realtime_events(schedule, connection, parameters, offsets)
     start, end = parameters.start_seconds, parameters.end_seconds
     baseline = get_transfer_events(schedule, connection, start, end)
     pool_start = max(0, start - max(offsets))
@@ -81,7 +137,7 @@ def offset_event_pool(schedule, connection, parameters, offsets) -> TransferEven
 
 
 def simulate_stochastic_transfers(
-    schedule: Schedule,
+    schedule: Schedule | RealtimeSchedule,
     connection: TransferConnection,
     walking_route: WalkingRoute,
     parameters: SimulationParameters,
@@ -91,7 +147,7 @@ def simulate_stochastic_transfers(
     repetitions: int = 1,
     seed: int | None = None,
     outgoing_offset_seconds: int = 0,
-) -> list[list[StochasticTransferOutcome]]:
+) -> list[list[StochasticTransferOutcome]] | list[list[RealtimeTransferOutcome]]:
     """Return one list of scheduled arrival attempts per independent timetable draw.
 
     Sample each event once per repetition. SimulationParameters delays are fixed
@@ -120,30 +176,53 @@ def simulate_event_runs(
 
     walk = walking_route.duration_seconds
     required = _required_seconds(walk, parameters.minimum_buffer_seconds)
+    realtime = isinstance(events, RealtimeEvents)
+    start, end = parameters.start_seconds, parameters.end_seconds
     shifted = {
         event: replace(event, time_seconds=event.time_seconds + outgoing_offset_seconds)
         for event in events.departures
-        if parameters.start_seconds <= event.time_seconds + outgoing_offset_seconds < parameters.end_seconds
     }
-    scheduled = [(event.time_seconds, event) for event in shifted.values()]
+    scheduled = [(event.time_seconds, event) for event in shifted.values() if start <= event.time_seconds < end]
     intentions = [_first_departure(scheduled, arrival.time_seconds + required) for arrival in events.arrivals]
+    published_visits = {shifted[event]: event for event in events.departures} if realtime else {}
 
     rng = Random(seed)
     for _ in range(repetitions):
         departure_times = {}
+        departures = []
         for event in events.departures:
             delay = rng.randint(departure_delay.minimum_seconds, departure_delay.maximum_seconds)
-            if event in shifted:
-                visit = shifted[event]
-                departure_times[visit] = visit.time_seconds + parameters.departure_delay_seconds + delay
-        departures = sorted((time, event) for event, time in departure_times.items()
-                            if time < parameters.end_seconds)
+            base = events.departure_conditions[event][0] if realtime else event.time_seconds
+            if base is None:
+                continue
+            visit = shifted[event]
+            shifted_base = base + outgoing_offset_seconds
+            modeled = shifted_base + parameters.departure_delay_seconds + delay
+            departure_times[visit] = modeled
+            if start <= shifted_base < end and modeled < end:
+                departures.append((modeled, visit))
+        departures.sort()
         outcomes = []
         for arrival, intention in zip(events.arrivals, intentions):
-            actual = (arrival.time_seconds + parameters.arrival_delay_seconds
-                      + rng.randint(arrival_delay.minimum_seconds, arrival_delay.maximum_seconds))
-            transfer = _match(arrival, actual, departures, walk, required)
+            base, source = events.arrival_conditions[arrival] if realtime else (arrival.time_seconds, "scheduled")
+            extra = parameters.arrival_delay_seconds + rng.randint(arrival_delay.minimum_seconds, arrival_delay.maximum_seconds)
+            modeled = base + extra if base is not None else None
+            boarded = _first_departure(departures, modeled + required) if modeled is not None else None
+            transfer = _match(arrival, modeled, boarded, walk)
             intended = intention[1] if intention else None
-            missed = departure_times[intended] < actual + required if intended else None
-            outcomes.append(StochasticTransferOutcome(transfer, actual, intended, missed))
+            missed = None
+            if intended and modeled is not None:
+                missed = intended not in departure_times or departure_times[intended] < modeled + required
+            if realtime:
+                published_boarding = published_visits[boarded[1]] if boarded else None
+                published_intention = published_visits[intended] if intended else None
+                outcomes.append(RealtimeTransferOutcome(
+                    transfer, arrival, modeled, boarded[0] if boarded else None, source,
+                    events.departure_conditions[published_boarding][1] if boarded else None,
+                    published_intention, missed,
+                    events.departure_conditions[published_intention][1] if intended else None,
+                    published_boarding,
+                ))
+            else:
+                outcomes.append(StochasticTransferOutcome(transfer, modeled, intended, missed))
         yield outcomes

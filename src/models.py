@@ -147,3 +147,19 @@ class StochasticTransferOutcome:
     actual_arrival_seconds: int
     intended_departure: ScheduledEvent | None
     missed_intended_connection: bool | None
+
+
+@dataclass(frozen=True)
+class RealtimeTransferOutcome:
+    """One published incoming visit evaluated using a forecast snapshot."""
+
+    transfer: TransferOutcome
+    incoming_visit: ScheduledEvent
+    modeled_arrival_seconds: int | None
+    modeled_departure_seconds: int | None
+    arrival_source: str
+    departure_source: str | None
+    intended_departure: ScheduledEvent | None
+    missed_intended_connection: bool | None
+    intended_departure_source: str | None
+    boarded_visit: ScheduledEvent | None

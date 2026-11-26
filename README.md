@@ -166,3 +166,35 @@ Each arrival and departure has a source. A `reported` time comes from the stop e
 With `scheduled_fallback`, only `effective_seconds` and `scheduled_seconds` have values. Both the prediction and delay are unknown. An untimed event without a prediction is `unavailable`. A `suppressed` event has no effective time. The original scheduled time remains available for comparison wherever the static feed supplies one.
 
 Trip coverage divides trips with a matched update, including cancellations, by all selected static trips. Timing coverage divides reported and inferred predictions by all arrival and departure slots in those trips **and** trips without updates. The counts distinguish reported, propagated (including trip delays), fallback, unavailable and suppressed events. An empty denominator returns `None`. These fractions describe a snapshot against the full service day, including trips outside the snapshot's prediction horizon.
+
+### Simulate and optimize a connection from a snapshot
+
+Pass a full `RealtimeSchedule` from `integrate_schedule` wherever the simulation or optimization API takes a schedule. Use its `baseline` for the published timetable. The following example uses an existing selected connection, walk, and compatible simulation window.
+
+```python
+from src.simulation import simulate_transfers, simulate_stochastic_transfers, DelayModel
+from src.optimization import optimize_offsets
+from src.analytics import summarize_transfers
+
+published = simulate_transfers(view.baseline, connection, walk, parameters)
+forecast = simulate_transfers(view, connection, walk, parameters)
+published_metrics, forecast_metrics = map(summarize_transfers, (published, forecast))
+
+result = optimize_offsets(view, connection, walk, parameters,
+                          min_offset_seconds=-120, max_offset_seconds=120, step_seconds=15)
+if result.recommendation:
+    print(result.recommendation.action, result.recommendation.baseline.mean_waiting_seconds,
+          result.recommendation.proposed.mean_waiting_seconds)
+print(result.arrival_sources, result.departure_sources)
+
+runs = simulate_stochastic_transfers(view, connection, walk, parameters,
+                                     arrival_delay=DelayModel(0, 30), repetitions=100, seed=42)
+```
+
+Use zero fixed delays with the published deterministic entry point. For fixed or random what-if delays on the published timetable, use `simulate_stochastic_transfers(view.baseline, ...)`. One repetition with zero draw bounds gives a deterministic scenario. A forecast outcome identifies the published incoming visit, intended and boarded visits, timing sources, and modeled arrival and departure in service-day seconds.
+
+- **Timing.** Start from the integrated event time or its labeled timetable fallback. Add the outgoing schedule offset once to departures. Add any fixed hypothetical delay and one sampled extra delay once per visit. A realtime deviation is already included in the integrated time. The random and fixed delay inputs describe additional disturbances. Holding a prediction's deviation constant under a shift is a local what-if assumption.
+- **Window.** Use a half-open interval on the selected service date. For snapshot experiments the entire interval must fit between 90 seconds before and one hour after the feed timestamp. This is the prototype's forecast horizon. Comparisons use epoch time derived from the Sofia GTFS service-day origin, including visits after 24:00. Archived snapshots replay against their original timestamp.
+- **Attempts.** Each timed, alightable *published* incoming visit in the window supplies one attempt across all conditions and offsets. A canceled, deleted or skipped incoming visit counts as incomplete with no modeled arrival or assessable intended-connection miss. Suppressed departures cannot be boarded. An available passenger can miss a suppressed intended departure and still complete the transfer on a later one. Missing timing information uses the labeled scheduled fallback.
+- **Boarding.** Published intentions use the offset timetable and scheduled passenger arrival. Candidate departures use the shifted base time for the chosen condition, so an early or late prediction can move a departure into or out of the window. A candidate delayed beyond the end by additional disturbances cannot be boarded. The earliest feasible modeled departure wins. Static visits without the relevant published time are outside the comparable event pool.
+- **Comparison and recommendation.** Realtime optimization returns the published zero-offset reference and realtime zero-offset and shifted scenarios with the same incoming cohort, candidate pool and paired random draws. The published reference uses the same hypothetical delay settings. Source counts cover incoming attempts and distinct outgoing candidates for zero or the winning offset, before repetitions. Recommendations specify the outgoing route, stop, shift direction and seconds, service window, criterion, and before/after metrics. They require local realtime evidence and a defined objective. All-fallback scenarios still produce metrics. A winning shift applies only to the selected connection under the modeled conditions.

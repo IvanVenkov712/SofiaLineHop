@@ -7,9 +7,9 @@ from statistics import fmean, median, pstdev
 
 import numpy as np
 
-from .models import StochasticTransferOutcome, TransferMetrics, TransferOutcome
+from .models import RealtimeTransferOutcome, StochasticTransferOutcome, TransferMetrics, TransferOutcome
 
-Outcome = TransferOutcome | StochasticTransferOutcome
+Outcome = TransferOutcome | StochasticTransferOutcome | RealtimeTransferOutcome
 DEFAULT_PERCENTILES = (50, 90, 95)
 
 
@@ -36,7 +36,7 @@ def summarize_transfers(
     attempts = intended = misses = 0
     for outcome in outcomes:
         attempts += 1
-        if isinstance(outcome, StochasticTransferOutcome):
+        if isinstance(outcome, (StochasticTransferOutcome, RealtimeTransferOutcome)):
             transfer = outcome.transfer
             if outcome.missed_intended_connection is not None:
                 intended += 1
@@ -81,7 +81,7 @@ def summarize_transfers_by_interval(
     levels = _percentile_levels(percentiles)
     groups: dict[int, list[Outcome]] = defaultdict(list)
     for outcome in outcomes:
-        transfer = outcome.transfer if isinstance(outcome, StochasticTransferOutcome) else outcome
+        transfer = outcome if isinstance(outcome, TransferOutcome) else outcome.transfer
         arrival = transfer.scheduled_arrival_seconds
         if arrival is None:
             raise ValueError("interval aggregation requires a scheduled arrival time")
