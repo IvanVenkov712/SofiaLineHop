@@ -4,13 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8f8e54b6-cb38-4085-8f12-3d38aa3c4235" name="Changes" comment="The Streamlit results view now compares the original and optimized schedules side by side">
+    <list default="true" id="8f8e54b6-cb38-4085-8f12-3d38aa3c4235" name="Changes" comment="Fixed a bug and added more tests">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/gtfs_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gtfs_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_gtfs_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_gtfs_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_transfers.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_transfers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/results_view.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/results_view.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -41,61 +39,61 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.004290228026032" />
-      <entry key="MS500" value="1.603394291060305" />
-      <entry key="S2" value="5.10428693895445" />
-      <entry key="S5" value="9.619556959524143" />
-      <entry key="S10" value="12.598910218264571" />
-      <entry key="S30" value="15.334567852014361" />
-      <entry key="S60" value="16.139541856237404" />
-      <entry key="M2" value="16.60657139462106" />
-      <entry key="M5" value="18.46153504086683" />
-      <entry key="M10" value="22.84586349315112" />
-      <entry key="M15" value="26.18640426927892" />
-      <entry key="M30" value="31.491094649755183" />
-      <entry key="H1" value="35.24043992607863" />
-      <entry key="H2" value="37.47775423350963" />
-      <entry key="H4" value="38.70100162428994" />
-      <entry key="D1" value="39.77803592878206" />
-      <entry key="W1" value="39.96815428223699" />
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="2.1999877522716425E-184" />
+      <entry key="S2" value="3.0186095126613276E-46" />
+      <entry key="S5" value="1.8434716640395202E-18" />
+      <entry key="S10" value="3.544406131875923E-9" />
+      <entry key="S30" value="0.00570999806950635" />
+      <entry key="S60" value="0.2669662148460782" />
+      <entry key="M2" value="2.777361068221527" />
+      <entry key="M5" value="14.534844726847199" />
+      <entry key="M10" value="28.09847018883165" />
+      <entry key="M15" value="36.355466865937125" />
+      <entry key="M30" value="48.62201037284135" />
+      <entry key="H1" value="57.136824245059955" />
+      <entry key="H2" value="62.22769938780431" />
+      <entry key="H4" value="65.02184828659398" />
+      <entry key="D1" value="67.49023482647324" />
+      <entry key="W1" value="67.92683952644246" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="0.0" />
-      <entry key="S2" value="0.0" />
-      <entry key="S5" value="0.0" />
-      <entry key="S10" value="0.0" />
-      <entry key="S30" value="0.0" />
-      <entry key="S60" value="0.0" />
-      <entry key="M2" value="0.0" />
-      <entry key="M5" value="0.0" />
-      <entry key="M10" value="0.0" />
-      <entry key="M15" value="0.0" />
-      <entry key="M30" value="0.0" />
-      <entry key="H1" value="0.0" />
-      <entry key="H2" value="0.0" />
-      <entry key="H4" value="0.0" />
-      <entry key="D1" value="0.0" />
-      <entry key="W1" value="0.0" />
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0" />
+      <entry key="S2" value="1.0" />
+      <entry key="S5" value="1.0" />
+      <entry key="S10" value="1.0" />
+      <entry key="S30" value="1.0" />
+      <entry key="S60" value="1.0" />
+      <entry key="M2" value="1.0" />
+      <entry key="M5" value="1.0" />
+      <entry key="M10" value="1.0" />
+      <entry key="M15" value="1.0" />
+      <entry key="M30" value="1.0" />
+      <entry key="H1" value="1.0" />
+      <entry key="H2" value="1.0" />
+      <entry key="H4" value="1.0" />
+      <entry key="D1" value="1.0" />
+      <entry key="W1" value="1.0" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.9500332222693739" />
-      <entry key="MS500" value="1.583902320623707" />
-      <entry key="S2" value="5.081440147797253" />
-      <entry key="S5" value="9.599917373052486" />
-      <entry key="S10" value="12.585591628274955" />
-      <entry key="S30" value="15.329054094609099" />
-      <entry key="S60" value="16.136626399754352" />
-      <entry key="M2" value="16.605021813368992" />
-      <entry key="M5" value="18.460066420996775" />
-      <entry key="M10" value="22.84386368302857" />
-      <entry key="M15" value="26.18438475429924" />
-      <entry key="M30" value="31.48952034958253" />
-      <entry key="H1" value="35.23944834286689" />
-      <entry key="H2" value="37.47719670786435" />
-      <entry key="H4" value="38.70070588375016" />
-      <entry key="D1" value="39.777984138183506" />
-      <entry key="W1" value="39.96814682040294" />
+      <entry key="MS100" value="5.78199984172973E-6" />
+      <entry key="MS500" value="0.08962220300098919" />
+      <entry key="S2" value="0.5471468506303697" />
+      <entry key="S5" value="0.7856725166675802" />
+      <entry key="S10" value="0.8863817027356584" />
+      <entry key="S30" value="0.9663028622799701" />
+      <entry key="S60" value="1.2470150512130298" />
+      <entry key="M2" value="3.7670748659179796" />
+      <entry key="M5" value="15.530005226740109" />
+      <entry key="M10" value="29.09505077983401" />
+      <entry key="M15" value="37.352523765778734" />
+      <entry key="M30" value="49.61989479402552" />
+      <entry key="H1" value="58.13550118285018" />
+      <entry key="H2" value="63.22695203665255" />
+      <entry key="H4" value="66.02145015631827" />
+      <entry key="D1" value="68.49016478914405" />
+      <entry key="W1" value="68.9268294269748" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -238,7 +236,15 @@
       <option name="project" value="LOCAL" />
       <updated>1795711259307</updated>
     </task>
-    <option name="localTasksCounter" value="13" />
+    <task id="LOCAL-00013" summary="Fixed a bug and added more tests">
+      <option name="closed" value="true" />
+      <created>1795718656504</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1795718656504</updated>
+    </task>
+    <option name="localTasksCounter" value="14" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -257,6 +263,7 @@
     <MESSAGE value="Implemented optimize_offsets for a selected transfer connection" />
     <MESSAGE value="Implemented the Streamlit interface in app.py" />
     <MESSAGE value="The Streamlit results view now compares the original and optimized schedules side by side" />
-    <option name="LAST_COMMIT_MESSAGE" value="The Streamlit results view now compares the original and optimized schedules side by side" />
+    <MESSAGE value="Fixed a bug and added more tests" />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed a bug and added more tests" />
   </component>
 </project>

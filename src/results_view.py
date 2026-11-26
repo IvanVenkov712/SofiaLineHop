@@ -81,7 +81,11 @@ def show_results(optimization, outcomes_by_offset, parameters):
         figure = go.Figure()
         for offset, name in labels.items():
             grouped = summarize_transfers_by_interval(outcomes_by_offset[offset], step)
-            values = [_metric_row(grouped[t])[metric] if t in grouped else None for t in bins]
+            if metric == "Mean wait (min)":
+                series = {t: _minutes(m.mean_waiting_seconds) for t, m in grouped.items()}
+            else:
+                series = {t: _percent(m.successful_rate) for t, m in grouped.items()}
+            values = [series.get(t) for t in bins]
             figure.add_bar(x=times, y=values, name=name)
         figure.update_layout(barmode="group", xaxis_type="category", yaxis_title=metric,
                              xaxis_title="Interval start (GTFS service-day time)")

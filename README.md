@@ -1,250 +1,116 @@
+﻿# SofiaLineHop
 
-# SofiaLineHop
+SofiaLineHop is an academic prototype for studying one transfer between two Sofia public transport lines. It combines a scheduled arrival, a walk between stops and a scheduled departure. The Streamlit app shows the walking route and compares the published timetable with hypothetical shifts to the outgoing service.
 
-Digital twin for public transport transfers in Sofia.
+## Install and run
 
-## Overview
+Run the commands from the directory containing `app.py`. The demonstration was tested on Windows with Python 3.13.7.
 
-SofiaLineHop is an urban digital twin prototype designed to model,
-simulate and analyze public transport transfers in Sofia.
+1. Create a virtual environment and install the dependencies. In PowerShell:
 
-The system combines public transport schedules with the pedestrian
-network to evaluate transfer efficiency and explore how changes
-in transport schedules could improve connectivity between lines.
+   ```powershell
+   py -3.13 -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   python -m pip install -r requirements.txt
+   ```
 
-The project is intended as an academic proof of concept rather
-than a production-ready transportation management system.
+   On macOS or Linux, use `python3.13 -m venv .venv` and `source .venv/bin/activate` before the same install command.
 
-## Objectives
+2. Put the unpacked timetable directly in `data/raw/gtfs/`. For example, `data/raw/gtfs/stops.txt` must exist. The loader reads `stops.txt`, `routes.txt`, `trips.txt` and `stop_times.txt`, plus at least one of `calendar.txt` and `calendar_dates.txt`. Use files from one release. The app reads them locally. [Download Sofia Traffic’s static GTFS ZIP](https://gtfs.sofiatraffic.bg/api/v1/static)
 
-- Build a digital representation of public transport transfers.
-- Estimate walking and waiting times between transport services.
-- Simulate transfers under different conditions.
-- Identify inefficient transfer connections.
-- Evaluate alternative transport schedules.
-- Visualize and compare simulation results.
+3. Start the local server and open the local URL printed in the terminal. Leave it running throughout the demonstration and press Ctrl+C to stop it.
 
-## Features
+   ```sh
+   python -m streamlit run app.py --server.address localhost --server.headless true
+   ```
 
-- Import and process GTFS data.
-- Construct a pedestrian network from OpenStreetMap.
-- Identify possible transfers between transport lines.
-- Calculate pedestrian routes and walking times.
-- Simulate scheduled and delayed vehicle arrivals.
-- Calculate transfer performance metrics.
-- Evaluate alternative schedule offsets.
-- Visualize stops, routes and simulation results.
-- Compare baseline and alternative scenarios.
+4. Choose a **Service date** covered by the feed, two routes and a transfer stop pair. Expand **Simulation parameters**, set the outgoing shift range and click **Run simulation**. After changing a setting, click the button again. The results include the route map, original and optimized metrics, a wait histogram, interval comparisons and a table of all evaluated shifts.
 
-## Technology Stack
+Run the full automated suite from the same environment with `python -m pytest`. Its fixtures supply local timetables and pedestrian graphs.
 
-- Python
-- Pandas
-- NumPy
-- OSMnx
-- NetworkX
-- Streamlit
-- Folium
-- Plotly
-- Pytest
+## Data and first launch
 
-## Data Sources
+**Timetable.** Sofia’s Urban Mobility Centre publishes the scheduled routes, trips, stop visits and service dates. The demonstration uses static GTFS feed version 1.2 with `feed_start_date=20261126` and `feed_end_date=20271126`. Calendar entries determine which trips actually run on the selected day. [Sofia Municipality transport data](https://www.sofia.bg/en/transport-data)
 
-- GTFS public transport schedules for Sofia.
-- OpenStreetMap pedestrian infrastructure.
+**Walking network.** On first use OSMnx downloads the walkable network for “Sofia, Bulgaria” from OpenStreetMap, retains disconnected components and saves a GraphML file under `data/processed/pedestrian/`. **Finding connected stops…** can include this download or loading the saved file. Open the app before presenting to populate the cache. Subsequent route selections reuse the graph in memory. The Folium map also uses online tiles and browser assets. [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright)
 
-The prototype uses available datasets and does not require
-field observations, physical sensors or real-time vehicle tracking.
+**For an exact replay**, copy both `data/raw/gtfs/` and `data/processed/pedestrian/` with their filenames to the demonstration machine. Git excludes the datasets. New downloads can change stops, paths and results. The reference GTFS ZIP has SHA-256 `A35C31BFBB2AC127CD80E586451839CE2D6A1B5E78DF804E25EB28823639BF06`. The reference GraphML has SHA-256 `E0122AE06337CB0C5CEBD16E8EDA36B68BB9642C29062D805BBF212521365A14` and contains 82,057 nodes and 222,118 directed edges. The demonstration used OSMnx 2.2.0, NetworkX 3.7 and Streamlit 1.67.0.
 
-## Architecture
+## Three demonstration scenarios
 
-The system is implemented as a modular Python application.
+Use **26 November 2026**, **07:00–08:00**, **All directions** for both routes, a **500 m** maximum walking distance, **1.4 m/s** walking speed and a **30 s** boarding buffer. Set the outgoing departure delay to **0 s** and the shift slider to **−5 through +5 minutes**. Use the incoming delay in the table. Match the IDs in parentheses in the route and stop selectors, especially for the two lines numbered 1.
 
-The main components are:
+| Connection | Alight → board | Incoming delay | Walk | Completed / attempts, original → best | Mean wait, original → best | Best shift |
+| --- | --- | ---: | ---: | --- | --- | ---: |
+| Tram 18 (`TM34`) → metro M1 (`M1`) | Пл. Св. Неделя (`TM1307`) → Сердика (`M7`) | 0 s | 190 m | 4/5 → 4/5 | 2.51 → 1.51 min | −1 min |
+| Trolleybus 1 (`TB10`) → tram 1 (`TM27`) | Бул. Ал. Стамболийски (`TB0283`) → Пл. Възраждане (`TM1269`) | 120 s | 476 m | 4/6 → 4/6 | 5.83 → 3.83 min | −2 min |
+| Metro M4 (`M4`) → metro M2 (`M2`) | Сердика (`M7`) → Сердика II (`M208`) | 0 s | 128 m | 17/19 → 17/19 | 2.89 → 1.15 min | −2 min |
 
-- Data ingestion and preprocessing.
-- Public transport model.
-- Pedestrian network model.
-- Transfer identification.
-- Transfer simulation.
-- Statistical analysis.
-- Schedule optimization.
-- Interactive visualization.
+For the **tram 18** example, check the first arrival by hand. The tram arrives at 07:08:00. Walking 189.81 m at 1.4 m/s takes 135.58 s. With the buffer, the passenger is ready at 07:10:46 and can board the 07:13:20 departure. The transfer takes 320 s, including 184.42 s of waiting after walking.
 
-## Project Structure
+For the **trolleybus** example, both columns include the two-minute arrival delay. Their difference isolates the effect of shifting the tram timetable. For the **metro interchange**, use the map to discuss what the 128 m represents. The model measures a path between snapped map nodes and omits the stairs, platforms and corridors a passenger may use underground.
 
-    .
-    ├── data/
-    │   ├── raw/
-    │   └── processed/
-    ├── src/
-    │   ├── __init__.py
-    │   ├── models.py
-    │   ├── gtfs_loader.py
-    │   ├── pedestrian_network.py
-    │   ├── transfers.py
-    │   ├── simulation.py
-    │   ├── analytics.py
-    │   └── optimization.py
-    ├── tests/
-    ├── app.py
-    ├── requirements.txt
-    ├── README.md
-    ├── AGENTS.md
-    └── .gitignore
+## Architecture and network models
 
-## Getting Started
+| Component | Responsibility |
+| --- | --- |
+| `src/gtfs_loader.py`, `src/models.py` | Validate GTFS tables and build a service-day schedule of stops, routes, trips and ordered stop visits. Preserve IDs as strings and store times in seconds from the service-day origin, including times beyond 24:00. |
+| `src/pedestrian_network.py` | Load or build a directed NetworkX multigraph. Nodes have WGS84 coordinates and edges have lengths in metres. Snap stops to nearest nodes and find a shortest walking path by edge length. |
+| `src/transfers.py` | For two distinct routes and optional directions, identify alighting and boarding stops, then search from each distinct origin node up to the distance limit. For a selected pair, extract its timed arrival and departure visits. |
+| `src/simulation.py` | Match scheduled or delayed arrivals to feasible departures and record individual outcomes. |
+| `src/analytics.py`, `src/optimization.py` | Summarize outcomes, evaluate local timetable offsets and select the best eligible scenario. |
+| `app.py`, `src/results_view.py` | Collect inputs, cache timetables and routes, render the Folium map and display results with pandas and Plotly. |
 
-Create a virtual environment:
+The timetable applies weekly service calendars and date exceptions. The first visit of a trip cannot supply an alighting passenger and the last cannot supply a boarding. Explicit GTFS pickup/drop-off prohibitions are respected. Untimed intermediate visits can identify possible locations but cannot generate simulation events. Each timed repeat visit is a separate event.
 
-    python -m venv .venv
+The UI accepts a snap distance of at most 100 m per stop. The walking limit applies to the directed network path between snapped nodes. Two stops can share a node and yield zero walking time. A connection can exist geographically even when no timed transfer is available in the selected interval.
 
-Activate the environment and install dependencies:
+## Simulation and statistical assumptions
 
-    pip install -r requirements.txt
+Each scheduled incoming visit in the half-open interval `[start, end)` contributes one equally weighted attempt. A window crossing midnight continues on the selected GTFS service day. For each offset, the simulation selects departures whose **shifted scheduled times** fall inside the window. A shift can therefore bring a departure into view. An incoming delay can push an attempt beyond the horizon and it still counts.
 
-Place the required GTFS dataset in:
+Walking time is distance divided by the selected constant speed. Boarding requires an actual departure **at or after** actual arrival plus walking time rounded up to whole seconds plus the buffer. The model chooses the earliest eligible actual departure strictly before the end of the window. Equality at the boarding threshold succeeds. Duration and waiting calculations use the unrounded walk.
 
-    data/raw/gtfs/
-
-Run the application:
-
-    streamlit run app.py
-
-Run the tests:
-
-    python -m pytest
-
-## Simulation
-
-The simulation evaluates transfers between selected incoming
-and outgoing public transport services.
-
-A transfer is considered feasible when a passenger can reach
-the outgoing service before its departure.
-
-Simulation parameters may include:
-
-- Selected transport lines and directions.
-- Transfer stops.
-- Date and time interval.
-- Pedestrian walking speed.
-- Minimum transfer buffer.
-- Vehicle arrival and departure delays.
-- Schedule offsets.
-
-### Stochastic vehicle delays
-
-For example, to simulate 100 possible timetables for a selected connection:
+The UI applies fixed nonnegative delays once per visit and runs one timetable per offset. The Python API also supports repeated timetables with independent discrete-uniform delays per visit. Bounds are inclusive whole seconds and fixed delays are added to each draw. Every arrival in one repetition sees the same set of realized departures. Delay distributions are hypothetical. A seed reproduces a run with the same inputs and software.
 
 ```python
+from itertools import chain
+from src.analytics import summarize_transfers
 from src.simulation import DelayModel, simulate_stochastic_transfers
 
+# Use the schedule, connection, walking route and parameters for the selected pair.
 runs = simulate_stochastic_transfers(
     schedule, connection, walking_route, parameters,
-    arrival_delay=DelayModel(minimum_seconds=0, maximum_seconds=120),
-    departure_delay=DelayModel(minimum_seconds=0, maximum_seconds=60),
+    arrival_delay=DelayModel(0, 120), departure_delay=DelayModel(0, 60),
     repetitions=100, seed=42,
 )
+metrics = summarize_transfers(chain.from_iterable(runs))
 ```
 
-These distributions are hypothetical scenario assumptions. They have not been
-fitted to or validated against observed Sofia vehicle delays. Each whole-second
-delay between the specified bounds is equally likely, including both endpoints.
-Equal bounds give a fixed delay. The default bounds are both zero. Any fixed
-arrival or departure delay in `SimulationParameters` is added to the draw.
-Vehicles can run late or on time. Each stop visit has an independent draw,
-including repeat visits of the same trip. Each repetition generates a new
-timetable shared by all passengers. This omits correlations due to traffic,
-time of day, or delay propagation. A seed replays the same sequence for the
-same inputs and software version.
+## Performance metrics
 
-The outer list indexes repetitions. Each inner list follows scheduled arrival
-order. Only visits scheduled in the half-open simulation window enter the
-scenario. Every selected arrival counts as an attempt, even if delayed beyond
-the horizon. Passengers board the earliest actual departure they can reach
-with the walking time and buffer, strictly before the end of the window.
-
-For each attempt, `transfer.successful` reports completion within the horizon.
-`intended_departure` is the first feasible departure on the scenario timetable,
-after applying its schedule offset and before adding vehicle delays.
-`missed_intended_connection` is true if that vehicle actually departed before
-the passenger was ready, and is `None` if there was no scheduled connection.
-A passenger can miss the intended vehicle and still board a later one. Conversely,
-a ready passenger whose vehicle departs beyond the horizon has an incomplete
-transfer without having missed the vehicle. Waiting and total duration use
-actual times, while the scheduled times in `transfer` identify the timetable
-events used.
-
-## Performance Metrics
-
-Pass scheduled outcomes or one stochastic repetition to
-`src.analytics.summarize_transfers`. To pool repetitions with equal weight per
-attempt, pass `itertools.chain.from_iterable(runs)`.
-
-| Metric | Definition |
+| Metric | Calculation and interpretation |
 | --- | --- |
-| Mean waiting time | Sum of waits divided by completed transfers. Each wait runs from the end of walking to the actual departure boarded, including the transfer buffer. |
-| Median waiting time | Middle completed wait in sorted order, averaging the middle pair for an even count. |
-| Maximum waiting time | Longest completed wait. |
-| Waiting time standard deviation | Population standard deviation of completed waits, dividing the sum of squared deviations by the number completed before taking the square root. One completion gives zero. |
-| Waiting time percentiles | Linear interpolation between sorted completed waits at zero-based rank `(n - 1) * p / 100`. The default levels are 50, 90 and 95. |
-| Mean total transfer duration | Sum of elapsed times from actual arrival to boarded departure divided by completed transfers. |
-| Missed connection rate | Intended vehicles missed divided by attempts with an intended vehicle. Includes a miss even when a later vehicle is boarded. For scheduled simulations, each feasible intended vehicle is caught. |
-| Incomplete transfer rate | Attempts with no boarding before the horizon divided by all attempts. Available as `incomplete_rate` and the original `missed_rate` field. |
-| Successful transfer rate | Completed transfers divided by all attempts. |
+| Waiting time | Actual boarded departure minus actual arrival minus walking time. Includes the boarding buffer. Mean, median and maximum use completed attempts only. |
+| Waiting time variability | Population standard deviation of completed waits. P50, P90 and P95 use linear interpolation at rank `(n − 1) × p / 100` in the sorted waits. |
+| Mean total transfer duration | Mean elapsed time from actual arrival to actual boarded departure, over completions. |
+| Successful and incomplete rates | Completed and uncompleted attempts, respectively, divided by all attempts. The API also calls the incomplete rate `missed_rate`. |
+| Missed intended connection rate | Fraction of attempts with a feasible scheduled departure whose intended vehicle actually left before the passenger was ready. Intention is computed after the scenario offset and before delays. An attempt may miss that vehicle and complete on a later one. |
 
-Times are in seconds and rates are fractions. Incomplete attempts contribute
-only to the applicable rates. An empty sample or zero denominator yields
-`None`, including at each requested percentile.
+Undefined statistics return `None`. The API reports seconds and fractions. The UI shows minutes and percentages. Interval summaries group by **scheduled** arrival in bins aligned to service-day midnight. The UI offers 15, 30 and 60 minutes. Pooled stochastic summaries give each attempt equal weight across repetitions.
 
-`summarize_transfers_by_interval(outcomes, interval_seconds=900)` returns the
-same metrics for each occupied 15-minute interval. Keys are interval starts
-in scheduled arrival seconds from the GTFS service-day origin, including times
-beyond 24 hours. Each interval includes its start and excludes its end. Empty
-input yields an empty mapping.
+## Schedule optimization
 
-## Optimization
+The app tests every whole-minute shift in the selected range (within ±15 minutes) and always evaluates zero. Negative offsets move the outgoing departures earlier. All offsets use the same incoming cohort, walking time, buffer and delay assumptions. Stochastic comparisons in the API share per-visit delay draws across offsets.
 
-`optimize_offsets` shifts outgoing visits at the selected connection in memory.
-A negative offset moves departures earlier. The search starts at the minimum
-and advances by the step up to the maximum, always including the original schedule.
+An offset must complete at least as many attempts as the original schedule to qualify. Among those offsets, the UI minimizes mean waiting time. Ties favor the smallest absolute change and then the earlier departure. If all eligible means are undefined, zero wins. The comparison table shows the winner and baseline, and the scenario table includes every evaluated offset.
 
-```python
-from src.optimization import optimize_offsets
-from src.simulation import DelayModel
+The Python entry point `optimize_offsets` accepts integer-second bounds and steps. It can also minimize median wait, maximum wait, mean total duration or incomplete rate, or maximize successful rate. Shifts apply in memory to the selected outgoing connection.
 
-result = optimize_offsets(
-    schedule, connection, walking_route, parameters,
-    min_offset_seconds=-120, max_offset_seconds=120, step_seconds=30,
-    criterion="mean_waiting_seconds", arrival_delay=DelayModel(0, 60),
-    repetitions=100, seed=42,
-)
-baseline = result.scenarios[0]
-best = result.scenarios[result.best_offset_seconds]
-```
+## Known limitations
 
-Every scenario uses the same incoming arrivals, window, and per-visit delay
-draws. Metrics pool attempts across repetitions. To qualify, an offset must
-complete at least as many transfers as the original schedule.
-The search minimizes `mean_waiting_seconds`, `median_waiting_seconds`,
-`maximum_waiting_seconds`, `mean_total_duration_seconds`, or `incomplete_rate`,
-or maximizes `successful_rate`. Equal scores favor the smallest absolute offset,
-then the earlier departure. If all eligible scores are undefined, the original
-schedule wins. All evaluated offsets remain available in `result.scenarios`.
-
-## Limitations
-
-- Accuracy depends on the quality of the available data.
-- Vehicle movement is modeled rather than tracked in real time.
-- Passenger demand and vehicle capacity are not modeled.
-- Walking times and delays are based on configurable assumptions.
-- Walking distances cover the pedestrian path between snapped network nodes.
-  The simulation omits stop-to-node access distances, GTFS station pathways,
-  and operator transfer rules from `transfers.txt`.
-- Optimization results represent hypothetical scenarios, not
-  operational recommendations for immediate implementation.
-
-## Project Status
-
-Academic prototype under development.
+- Results describe scheduled stop visits. The model omits passenger counts, capacity, observed delays, traffic correlations and delay propagation along a trip.
+- The walking estimate excludes stop-to-node access distances, accessibility constraints, GTFS station pathways and operator rules in `transfers.txt`. The buffer is a user assumption.
+- **All directions** pools visits on the selected line at the chosen stop. Where the feed omits direction IDs, the app cannot distinguish directions. A traveler with a particular destination may have fewer boarding options.
+- The end of the observation window affects completion rates. A passenger who could board just after the horizon counts as incomplete. Waiting-time summaries omit such passengers.
+- The search evaluates one connection over one time window. It does not model downstream transfers, fleet circulation or network-wide feasibility. The measured improvements are hypothetical.
