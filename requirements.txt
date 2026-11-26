@@ -3,7 +3,7 @@ numpy
 osmnx
 scikit-learn
 networkx
-streamlit
+streamlit>=1.67
 folium
 plotly
 pytest

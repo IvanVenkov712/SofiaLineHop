@@ -4,8 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8f8e54b6-cb38-4085-8f12-3d38aa3c4235" name="Changes" comment="Implemented the metrics in the analytics module">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="8f8e54b6-cb38-4085-8f12-3d38aa3c4235" name="Changes" comment="Implemented optimize_offsets for a selected transfer connection">
+      <change beforePath="$PROJECT_DIR$/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -208,7 +209,15 @@
       <option name="project" value="LOCAL" />
       <updated>1795710497969</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="Implemented optimize_offsets for a selected transfer connection">
+      <option name="closed" value="true" />
+      <created>1795710760256</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1795710760256</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -224,6 +233,7 @@
     <MESSAGE value="Implemented deterministic transfer simulation" />
     <MESSAGE value="Added simulate_stochastic_transfers" />
     <MESSAGE value="Implemented the metrics in the analytics module" />
-    <option name="LAST_COMMIT_MESSAGE" value="Implemented the metrics in the analytics module" />
+    <MESSAGE value="Implemented optimize_offsets for a selected transfer connection" />
+    <option name="LAST_COMMIT_MESSAGE" value="Implemented optimize_offsets for a selected transfer connection" />
   </component>
 </project>

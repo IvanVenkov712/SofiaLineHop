@@ -1,11 +1,181 @@
-"""Streamlit entry point for SofiaLineHop."""
+﻿"""Streamlit interface for exploring a single public transport transfer."""
+
+from datetime import time
+from pathlib import Path
+
+import folium
+import streamlit as st
+
+from src.analytics import summarize_transfers
+from src.gtfs_loader import load_schedule
+from src.models import SimulationParameters
+from src.pedestrian_network import build_pedestrian_network, find_walking_route
+from src.simulation import simulate_stochastic_transfers
+from src.transfers import find_transfers
+
+FEED = Path(__file__).resolve().parent / "data/raw/gtfs"
+SNAP_LIMIT_M = 100
 
 
-def main() -> None:
-    import streamlit as st
+@st.cache_resource(max_entries=2, show_spinner="Reading the service-day timetable…")
+def timetable(day, feed_version):
+    schedule = load_schedule(FEED, day)
+    directions = {}
+    for trip in schedule.trips:
+        available = directions.setdefault(trip.route_id, set())
+        if trip.direction_id is not None:
+            available.add(trip.direction_id)
+    return schedule, directions
 
+
+@st.cache_resource(show_spinner="Loading Sofia’s walking network. The first download may take several minutes.")
+def network():
+    return build_pedestrian_network()
+
+
+@st.cache_data(max_entries=64, show_spinner="Finding connected stops…")
+def connections(day, version, incoming, outgoing, incoming_direction, outgoing_direction, limit):
+    schedule, _ = timetable(day, version)
+    return find_transfers(
+        schedule, limit, network=network(), incoming_route_id=incoming, outgoing_route_id=outgoing,
+        incoming_direction_id=incoming_direction, outgoing_direction_id=outgoing_direction,
+        max_snap_distance_m=SNAP_LIMIT_M,
+    )
+
+
+@st.cache_data(max_entries=64, show_spinner=False)
+def walking_route(origin, destination, speed):
+    return find_walking_route(network(), origin, destination, speed, max_snap_distance_m=SNAP_LIMIT_M)
+
+
+def stop_label(stop):
+    return f"{stop.name} ({stop.stop_id})"
+
+
+@st.cache_data(max_entries=64, show_spinner=False)
+def map_html(origin, destination, geometry):
+    start = (origin.latitude, origin.longitude)
+    end = (destination.latitude, destination.longitude)
+    points = [(lat, lon) for lon, lat in geometry]
+    view = folium.Map(location=start, zoom_start=17, control_scale=True)
+    if len(points) > 1:
+        folium.PolyLine(points, color="#245fa4", weight=5, tooltip="Walking route").add_to(view)
+    if start == end:
+        folium.Marker(start, tooltip="Alight and board here").add_to(view)
+    else:
+        folium.Marker(start, tooltip="Alight here", icon=folium.Icon(color="blue")).add_to(view)
+        folium.Marker(end, tooltip="Board here", icon=folium.Icon(color="green")).add_to(view)
+    view.fit_bounds([start, end, *points], padding=(24, 24), max_zoom=18)
+    return view.get_root().render()
+
+
+def direction_picker(role, available):
+    return st.selectbox(
+        f"{role} direction", [None, *sorted(available)],
+        format_func=lambda value: "All directions" if value is None else f"Direction {value}",
+        disabled=not available,
+    )
+
+
+def seconds(value):
+    return value.hour * 3600 + value.minute * 60 + value.second
+
+
+def main():
+    st.set_page_config(page_title="SofiaLineHop")
     st.title("SofiaLineHop")
-    st.write("Public transport transfers in Sofia")
+    st.caption("Explore a walking transfer between two Sofia public transport routes.")
+    date_col, start_col, end_col = st.columns(3)
+    day = date_col.date_input("Service date")
+    start = start_col.time_input("From", time(7))
+    end = end_col.time_input("Until (exclusive)", time(9))
+    start_seconds, end_seconds = seconds(start), seconds(end)
+    if end < start:
+        end_seconds += 86400
+        st.caption("The interval ends the following morning on the selected GTFS service day.")
+    elif end == start:
+        st.info("Choose different start and end times.")
+        return
+
+    try:
+        version = tuple(sorted((p.name, p.stat().st_mtime_ns) for p in FEED.glob("*.txt")))
+        schedule, directions = timetable(day, version)
+    except FileNotFoundError as exc:
+        st.info(f"Place the unpacked Sofia GTFS feed in data/raw/gtfs/. Missing file: {Path(exc.filename).name}")
+        return
+    except (ValueError, OSError) as exc:
+        st.error(f"Could not read the GTFS timetable: {exc}")
+        return
+
+    if len(directions) < 2:
+        st.info("Fewer than two routes operate on this service date. Choose another date.")
+        return
+
+    def route_label(route_id):
+        route = schedule.routes[route_id]
+        name = " · ".join(filter(None, (route.short_name, route.long_name)))
+        return f"{name} ({route_id})"
+
+    st.subheader("Transfer connection")
+    routes = sorted(directions, key=route_label)
+    left, right = st.columns(2)
+    with left:
+        incoming = st.selectbox("Incoming route", routes, format_func=route_label)
+        incoming_dir = direction_picker("Incoming", directions[incoming])
+    with right:
+        outgoing = st.selectbox("Outgoing route", [r for r in routes if r != incoming], format_func=route_label)
+        outgoing_dir = direction_picker("Outgoing", directions[outgoing])
+    limit = st.number_input("Maximum walking distance (m)", min_value=0, value=500, step=50)
+    try:
+        pairs = connections(day, version, incoming, outgoing, incoming_dir, outgoing_dir, limit)
+    except Exception as exc:
+        st.error(f"Could not load or route on the Sofia walking network. Check the local graph cache "
+                 f"and internet connection, then retry. Details: {exc}")
+        st.button("Retry walking network")
+        return
+    if not pairs:
+        st.info("No connected stops within this walking distance. Increase the distance or change routes or directions.")
+        return
+
+    def pair_label(pair):
+        return " → ".join(stop_label(schedule.stops[leg.stop_id]) for leg in (pair.incoming, pair.outgoing))
+
+    pair = st.selectbox("Transfer stops (alight → board)", pairs, format_func=pair_label)
+    origin = schedule.stops[pair.incoming.stop_id]
+    destination = schedule.stops[pair.outgoing.stop_id]
+    with st.expander("Simulation parameters"):
+        left, right = st.columns(2)
+        speed = left.number_input("Walking speed (m/s)", min_value=0.1, value=1.4, step=0.1)
+        buffer = right.number_input("Minimum boarding buffer (s)", min_value=0, value=0)
+        arrival = left.number_input("Incoming arrival delay (s)", min_value=0, value=0)
+        departure = right.number_input("Outgoing departure delay (s)", min_value=0, value=0)
+
+    walk = walking_route(origin, destination, speed)
+    if walk is None:
+        st.warning("No walking route is available for these stops. Select another pair.")
+        return
+    st.iframe(map_html(origin, destination, walk.geometry), height=350)
+    st.caption(f"Walking route · {walk.distance_meters:.0f} m · {walk.duration_seconds / 60:.1f} min "
+               "between pedestrian network nodes.")
+
+    parameters = SimulationParameters(start_seconds, end_seconds, buffer, arrival, departure)
+    selection = (day, version, pair, parameters, walk)
+    if st.button("Run simulation", type="primary"):
+        outcomes, = simulate_stochastic_transfers(schedule, pair, walk, parameters)
+        st.session_state.result = selection, len(outcomes), summarize_transfers(outcomes)
+    result = st.session_state.get("result")
+    if result and result[0] == selection:
+        _, attempts, metrics = result
+        st.subheader("Simulation results")
+        if not attempts:
+            st.info("No scheduled arrivals at the selected stop in this interval.")
+            return
+        count, rate, wait = st.columns(3)
+        count.metric("Arrival attempts", attempts)
+        rate.metric("Completed transfers", f"{metrics.successful_rate:.1%}")
+        mean = metrics.mean_waiting_seconds
+        wait.metric("Mean wait", "—" if mean is None else f"{mean / 60:.1f} min")
+        st.caption("Completion requires boarding before the interval ends. Mean wait covers completed transfers.")
 
 
 if __name__ == "__main__":
