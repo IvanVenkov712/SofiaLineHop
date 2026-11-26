@@ -6,10 +6,11 @@ from pathlib import Path
 import folium
 import streamlit as st
 
-from src.analytics import summarize_transfers
 from src.gtfs_loader import load_schedule
 from src.models import SimulationParameters
+from src.optimization import optimize_offsets
 from src.pedestrian_network import build_pedestrian_network, find_walking_route
+from src.results_view import show_results
 from src.simulation import simulate_stochastic_transfers
 from src.transfers import find_transfers
 
@@ -159,23 +160,22 @@ def main():
                "between pedestrian network nodes.")
 
     parameters = SimulationParameters(start_seconds, end_seconds, buffer, arrival, departure)
-    selection = (day, version, pair, parameters, walk)
+    shifts = st.slider("Outgoing schedule shifts to evaluate (min)", -15, 15, (-5, 5))
+    st.caption("Evaluate each whole-minute shift in the range and the original schedule.")
+    selection = (day, version, pair, parameters, walk, shifts)
     if st.button("Run simulation", type="primary"):
-        outcomes, = simulate_stochastic_transfers(schedule, pair, walk, parameters)
-        st.session_state.result = selection, len(outcomes), summarize_transfers(outcomes)
+        optimization = optimize_offsets(schedule, pair, walk, parameters,
+                                        min_offset_seconds=60 * shifts[0],
+                                        max_offset_seconds=60 * shifts[1], step_seconds=60)
+        outcomes = {}
+        for offset in {0, optimization.best_offset_seconds}:
+            outcomes[offset], = simulate_stochastic_transfers(
+                schedule, pair, walk, parameters, outgoing_offset_seconds=offset)
+        st.session_state.result = selection, optimization, outcomes
     result = st.session_state.get("result")
     if result and result[0] == selection:
-        _, attempts, metrics = result
-        st.subheader("Simulation results")
-        if not attempts:
-            st.info("No scheduled arrivals at the selected stop in this interval.")
-            return
-        count, rate, wait = st.columns(3)
-        count.metric("Arrival attempts", attempts)
-        rate.metric("Completed transfers", f"{metrics.successful_rate:.1%}")
-        mean = metrics.mean_waiting_seconds
-        wait.metric("Mean wait", "—" if mean is None else f"{mean / 60:.1f} min")
-        st.caption("Completion requires boarding before the interval ends. Mean wait covers completed transfers.")
+        _, optimization, outcomes = result
+        show_results(optimization, outcomes, parameters)
 
 
 if __name__ == "__main__":

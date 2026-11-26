@@ -30,6 +30,14 @@ def test_transfer_workflow(monkeypatch):
     assert "L.polyline" in app.get("iframe")[0].proto.srcdoc
     app.button[0].click().run()
     assert [metric.value for metric in app.metric[:2]] == ["1", "100.0%"]
+    assert len(app.get("plotly_chart")) == 2
+    comparison, scenarios = (table.value for table in app.dataframe)
+    assert comparison.columns.tolist() == ["Original", "Optimized (-3 min)"]
+    assert comparison.loc["Mean wait (min)", "Original"] > comparison.loc["Mean wait (min)", "Optimized (-3 min)"]
+    assert scenarios["Outgoing shift (min)"].tolist() == list(range(-5, 6))
+    app.selectbox[-1].select("Completed (%)").run()
+    assert not app.exception
+    assert len(app.get("plotly_chart")) == 2
     app.number_input[3].set_value(300).run()
     assert not app.metric
     app.button[0].click().run()

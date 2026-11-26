@@ -68,6 +68,18 @@ def simulate_transfers(
     return [_match(event, event.time_seconds, departures, walk, required) for event in events.arrivals]
 
 
+def offset_event_pool(schedule, connection, parameters, offsets) -> TransferEvents:
+    """Keep the arrival cohort fixed and include departures that can shift into view."""
+    start, end = parameters.start_seconds, parameters.end_seconds
+    baseline = get_transfer_events(schedule, connection, start, end)
+    pool_start = max(0, start - max(offsets))
+    pool_end = end - min(offsets)
+    if (pool_start, pool_end) == (start, end):
+        return baseline
+    pool = get_transfer_events(schedule, connection, pool_start, pool_end)
+    return TransferEvents(baseline.arrivals, pool.departures)
+
+
 def simulate_stochastic_transfers(
     schedule: Schedule,
     connection: TransferConnection,
@@ -78,15 +90,16 @@ def simulate_stochastic_transfers(
     departure_delay: DelayModel = DelayModel(),
     repetitions: int = 1,
     seed: int | None = None,
+    outgoing_offset_seconds: int = 0,
 ) -> list[list[StochasticTransferOutcome]]:
     """Return one list of scheduled arrival attempts per independent timetable draw.
 
     Sample each event once per repetition. SimulationParameters delays are fixed
     additions to the sampled delays. See README for cohort and horizon semantics.
     """
-    events = get_transfer_events(schedule, connection, parameters.start_seconds, parameters.end_seconds)
+    events = offset_event_pool(schedule, connection, parameters, (0, outgoing_offset_seconds))
     return list(simulate_event_runs(events, walking_route, parameters, arrival_delay,
-                                    departure_delay, repetitions, seed))
+                                    departure_delay, repetitions, seed, outgoing_offset_seconds))
 
 
 def simulate_event_runs(

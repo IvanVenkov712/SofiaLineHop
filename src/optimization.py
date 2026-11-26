@@ -7,10 +7,9 @@ from secrets import randbits
 
 from .analytics import summarize_transfers
 from .models import (
-    Schedule, SimulationParameters, TransferConnection, TransferEvents, TransferMetrics, WalkingRoute,
+    Schedule, SimulationParameters, TransferConnection, TransferMetrics, WalkingRoute,
 )
-from .simulation import DelayModel, simulate_event_runs
-from .transfers import get_transfer_events
+from .simulation import DelayModel, offset_event_pool, simulate_event_runs
 
 
 @dataclass(frozen=True)
@@ -38,14 +37,7 @@ def evaluate_offsets(
             raise ValueError("offsets must be whole seconds")
         offsets.add(offset)
 
-    start, end = parameters.start_seconds, parameters.end_seconds
-    baseline = get_transfer_events(schedule, connection, start, end)
-    # A visit outside the original window can become available after shifting.
-    pool_start = max(0, start - max(offsets))
-    pool_end = end - min(offsets)
-    pool = (baseline if (pool_start, pool_end) == (start, end)
-            else get_transfer_events(schedule, connection, pool_start, pool_end))
-    events = TransferEvents(baseline.arrivals, pool.departures)
+    events = offset_event_pool(schedule, connection, parameters, offsets)
     common_seed = randbits(128) if seed is None else seed
     scenarios = {}
     for offset in sorted(offsets):
