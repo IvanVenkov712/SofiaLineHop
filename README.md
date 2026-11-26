@@ -133,6 +133,48 @@ Simulation parameters may include:
 - Vehicle arrival and departure delays.
 - Schedule offsets.
 
+### Stochastic vehicle delays
+
+For example, to simulate 100 possible timetables for a selected connection:
+
+```python
+from src.simulation import DelayModel, simulate_stochastic_transfers
+
+runs = simulate_stochastic_transfers(
+    schedule, connection, walking_route, parameters,
+    arrival_delay=DelayModel(minimum_seconds=0, maximum_seconds=120),
+    departure_delay=DelayModel(minimum_seconds=0, maximum_seconds=60),
+    repetitions=100, seed=42,
+)
+```
+
+These distributions are hypothetical scenario assumptions. They have not been
+fitted to or validated against observed Sofia vehicle delays. Each whole-second
+delay between the specified bounds is equally likely, including both endpoints.
+Equal bounds give a fixed delay. The default bounds are both zero. Any fixed
+arrival or departure delay in `SimulationParameters` is added to the draw.
+Vehicles can run late or on time. Each stop visit has an independent draw,
+including repeat visits of the same trip. Each repetition generates a new
+timetable shared by all passengers. This omits correlations due to traffic,
+time of day, or delay propagation. A seed replays the same sequence for the
+same inputs and software version.
+
+The outer list indexes repetitions. Each inner list follows scheduled arrival
+order. Only visits scheduled in the half-open simulation window enter the
+scenario. Every selected arrival counts as an attempt, even if delayed beyond
+the horizon. Passengers board the earliest actual departure they can reach
+with the walking time and buffer, strictly before the end of the window.
+
+For each attempt, `transfer.successful` reports completion within the horizon.
+`intended_departure` is the first feasible departure on the original timetable.
+`missed_intended_connection` is true if that vehicle actually departed before
+the passenger was ready, and is `None` if there was no scheduled connection.
+A passenger can miss the intended vehicle and still board a later one. Conversely,
+a ready passenger whose vehicle departs beyond the horizon has an incomplete
+transfer without having missed the vehicle. Waiting and total duration use
+actual times, while the scheduled times in `transfer` identify the timetable
+events used.
+
 ## Performance Metrics
 
 - Mean waiting time.

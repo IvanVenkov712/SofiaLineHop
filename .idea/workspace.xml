@@ -4,10 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8f8e54b6-cb38-4085-8f12-3d38aa3c4235" name="Changes" comment="Implemented pedestrian routing for Sofia with OSMnx and NetworkX">
-      <change beforePath="$PROJECT_DIR$/src/gtfs_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gtfs_loader.py" afterDir="false" />
+    <list default="true" id="8f8e54b6-cb38-4085-8f12-3d38aa3c4235" name="Changes" comment="Implemented deterministic transfer simulation">
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/transfers.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/transfers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/simulation.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/simulation.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test_simulation.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_simulation.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -178,7 +179,23 @@
       <option name="project" value="LOCAL" />
       <updated>1795709493059</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="mplemented find_transfers and get_transfer_events in transfers.py.">
+      <option name="closed" value="true" />
+      <created>1795709777404</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1795709777404</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Implemented deterministic transfer simulation">
+      <option name="closed" value="true" />
+      <created>1795710004240</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1795710004240</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -190,6 +207,8 @@
     <MESSAGE value="added readme and agents" />
     <MESSAGE value="Implemented GTFS schedule loading" />
     <MESSAGE value="Implemented pedestrian routing for Sofia with OSMnx and NetworkX" />
-    <option name="LAST_COMMIT_MESSAGE" value="Implemented pedestrian routing for Sofia with OSMnx and NetworkX" />
+    <MESSAGE value="mplemented find_transfers and get_transfer_events in transfers.py." />
+    <MESSAGE value="Implemented deterministic transfer simulation" />
+    <option name="LAST_COMMIT_MESSAGE" value="Implemented deterministic transfer simulation" />
   </component>
 </project>

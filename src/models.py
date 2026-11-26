@@ -132,3 +132,12 @@ class TransferMetrics:
     mean_total_duration_seconds: float | None
     successful_rate: float | None
     missed_rate: float | None
+
+@dataclass(frozen=True)
+class StochasticTransferOutcome:
+    """Realized transfer and feasibility of the originally intended stop visit."""
+
+    transfer: TransferOutcome
+    actual_arrival_seconds: int
+    intended_departure: ScheduledEvent | None
+    missed_intended_connection: bool | None
