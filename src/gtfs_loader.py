@@ -127,7 +127,7 @@ def _routes(directory):
 
 
 @lru_cache(maxsize=65536)
-def _seconds(value):
+def parse_gtfs_time(value):
     if not value:
         return None
     match = _TIME.fullmatch(value)
@@ -175,7 +175,7 @@ def load_schedule(gtfs_directory: Path, service_date: date, *,
                 raise ValueError(f"invalid stop_sequence {row['stop_sequence']!r}")
             sequence = int(row["stop_sequence"])
             _unique(calls[key], sequence, f"stop_sequence for trip {key!r}")
-            arrival, departure = (_seconds(row[field]) for field in times)
+            arrival, departure = (parse_gtfs_time(row[field]) for field in times)
             if (arrival is None) != (departure is None):
                 raise ValueError("arrival_time and departure_time must be supplied together")
             if arrival is None and row.get("timepoint") == "1":

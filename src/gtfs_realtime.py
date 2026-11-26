@@ -1,4 +1,4 @@
-﻿"""Sofia GTFS Realtime full snapshots and explicit updates to static stop visits."""
+"""Sofia GTFS Realtime full snapshots and explicit updates to static stop visits."""
 
 import base64
 from collections import Counter
@@ -16,10 +16,16 @@ from google.protobuf.message import DecodeError
 from google.transit import gtfs_realtime_pb2 as gtfs
 
 from .models import Schedule, Trip
+from .gtfs_loader import parse_gtfs_time
 
 
 TRIP_UPDATES_URL = "https://gtfs.sofiatraffic.bg/api/v1/trip-updates"
 SOFIA = ZoneInfo("Europe/Sofia")
+
+
+def service_day_origin(day):
+    """Unix seconds at GTFS local noon minus twelve elapsed hours (DST safe)."""
+    return int(datetime.combine(day, daytime(12), SOFIA).timestamp()) - 43200
 
 
 class RealtimeError(ValueError):
@@ -194,9 +200,9 @@ def match_updates(snapshot: Snapshot, schedule: Schedule, *, as_of: int | None =
     entity_ids = Counter(entity.id for entity in feed.entity)
     # Multiple dated instances may legitimately share the static trip ID.
     day = schedule.service_date
-    noon = datetime.combine(day, daytime(12), SOFIA)
-    origin = int(noon.timestamp()) - 43200
-    local_date = datetime.fromtimestamp(snapshot.source_timestamp, SOFIA).date()
+    origin = service_day_origin(day)
+    yesterday = service_day_origin(day - timedelta(days=1))
+    tomorrow = service_day_origin(day + timedelta(days=1))
     matched, issues = {}, []
     duplicates = set()
     for entity in feed.entity:
@@ -204,6 +210,31 @@ def match_updates(snapshot: Snapshot, schedule: Schedule, *, as_of: int | None =
         descriptor = update.trip
         key = descriptor.trip_id
         trip = trips.get(key)
+        if descriptor.HasField("start_time"):
+            try:
+                start = parse_gtfs_time(descriptor.start_time)
+            except ValueError:
+                start = None
+            if start is None:
+                issues.append(f"{entity.id}: invalid start time")
+                continue
+            if (not key and descriptor.start_date and descriptor.HasField("direction_id")
+                    and descriptor.schedule_relationship == gtfs.TripDescriptor.SCHEDULED):
+                if any(not stop.stop_id or
+                       any(stop.HasField(name) and not getattr(stop, name).HasField("time")
+                           for name in ("arrival", "departure"))
+                       for stop in update.stop_time_update):
+                    issues.append(f"{entity.id}: alternative matching requires stop IDs and absolute times")
+                    continue
+                candidates = [t for t in schedule.trips if t.route_id == descriptor.route_id
+                              and t.direction_id == descriptor.direction_id and t.stop_times
+                              and t.stop_times[0].departure_seconds == start]
+                if len(candidates) == 1:
+                    trip, = candidates
+                    key = trip.trip_id
+            if trip and (not trip.stop_times or trip.stop_times[0].departure_seconds != start):
+                issues.append(f"{key}: trip start time mismatch")
+                continue
         if (not entity.id or entity_ids[entity.id] != 1 or entity.is_deleted
                 or not entity.HasField("trip_update") or trip is None):
             issues.append(f"{entity.id!r}: invalid entity or unknown trip {key!r}")
@@ -223,6 +254,14 @@ def match_updates(snapshot: Snapshot, schedule: Schedule, *, as_of: int | None =
             continue
         visits = _visits(update, trip, origin, issues) if relationship == "SCHEDULED" else ()
         if not descriptor.start_date:
+            if not trip.stop_times:
+                issues.append(f"{key}: missing static visits")
+                continue
+            first = trip.stop_times[0].departure_seconds
+            last = trip.stop_times[-1].arrival_seconds
+            if first is not None and last is not None and last - first > 86400:
+                issues.append(f"{key}: multi-day trip requires start_date")
+                continue
             # Compare explicit absolute predictions with the same stop times
             # on adjacent service days. A trip can be reported before it starts.
             gaps = [event.delay_seconds for visit in visits
@@ -230,12 +269,18 @@ def match_updates(snapshot: Snapshot, schedule: Schedule, *, as_of: int | None =
                     if event is not None and event.delay_seconds is not None
                     and event.has_reported_time]
             if gaps:
-                yesterday = int((noon - timedelta(days=1)).timestamp()) - 43200
-                tomorrow = int((noon + timedelta(days=1)).timestamp()) - 43200
                 correct_day = (2 * min(gaps) > yesterday - origin
                                and 2 * max(gaps) < tomorrow - origin)
             else:
-                correct_day = local_date == day
+                # With no absolute prediction, compare the trip's operating
+                # interval to the update time, including previous-day service.
+                if first is None or last is None:
+                    issues.append(f"{key}: missing service-day bounds")
+                    continue
+                moment = (timestamp or snapshot.source_timestamp) - (update.delay or 0)
+                distances = [max(base + first - moment, moment - base - last, 0)
+                             for base in (yesterday, origin, tomorrow)]
+                correct_day = distances[1] < min(distances[0], distances[2])
             if not correct_day:
                 issues.append(f"{key}: unresolved service day")
                 continue

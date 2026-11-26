@@ -139,6 +139,30 @@ trips, issues = match_updates(replay, schedule)
 
 The archive contains the original protobuf bytes and the retrieval timestamp. Matching returns explicit updates by static trip ID and diagnostics for rejected records. Each reported visit carries its static stop sequence, relationship, and separate arrival and departure predictions. Event timestamps are Unix seconds. Signed delays use the scheduled event where available. When both time and delay are reported, the absolute time takes precedence and the reported delay is retained separately. Omitted stops have no explicit prediction in this adapter.
 
-Fetching raises `RealtimeError` on network, decoding or freshness failures. Feed and trip freshness default to 90 seconds. Replay evaluates freshness at the original retrieval time. Supply `as_of=int(time.time())` when checking a saved snapshot for live use. Around midnight, also match the previous day's full schedule for trips with after-midnight stop times. Explicit trip dates take priority. For undated trips with absolute predictions the matcher selects the nearest service day by comparing predicted and scheduled visits. Without such predictions it uses the feed's Sofia calendar date.
+Fetching raises `RealtimeError` on network, decoding or freshness failures. Feed and trip freshness default to 90 seconds. Replay evaluates freshness at the original retrieval time. Supply `as_of=int(time.time())` when checking a saved snapshot for live use. Around midnight, also match the previous day's full schedule for trips with after-midnight stop times. Explicit trip dates take priority. For undated trips with absolute predictions the matcher selects the nearest service day by comparing predicted and scheduled visits. For an undated update without absolute predictions, the matcher compares the measurement time with adjacent service-day operating intervals, accounting for a reported trip delay. Ties remain unresolved. GTFS service-day seconds start twelve elapsed hours before local noon in Europe/Sofia, including on clock-change days.
 
 The offline tests construct protobuf messages locally. [GTFS Realtime reference](https://gtfs.org/documentation/realtime/reference/)
+
+### Compare scheduled and updated visits
+
+Pass the full service-day schedule and a snapshot to the model API. The view keeps a read-only baseline, the feed and retrieval timestamps, matched trip updates and any matching diagnostics.
+
+```python
+from src.realtime_schedule import integrate_schedule
+
+view = integrate_schedule(schedule, replay)
+coverage = view.coverage()            # Entire selected service day
+tram_coverage = view.coverage("TM34")  # Same calculation for one static route
+for trip in view.trips.values():
+    for visit in trip.visits:
+        arrival = visit.arrival
+        # scheduled_seconds, updated_seconds and effective_seconds use the same service-day origin.
+        if arrival.source == "reported":
+            print(trip.scheduled.trip_id, visit.scheduled.stop_sequence, arrival.delay_seconds)
+```
+
+Each arrival and departure has a source. A `reported` time comes from the stop event. A `trip_delay` or `propagated` time uses a signed deviation applied to that event's own scheduled time. Trip delay applies before the first stop update. At a timed update, the arrival delay can carry forward to departure and the last known deviation carries to following stops. A departure-only update supplies no arrival prediction at its own stop. A skipped visit is suppressed while the preceding delay continues downstream. A `NO_DATA` update clears propagation until a new timed update. Canceled or deleted trips suppress every visit. [GTFS Realtime reference](https://gtfs.org/documentation/realtime/reference/)
+
+With `scheduled_fallback`, only `effective_seconds` and `scheduled_seconds` have values. Both the prediction and delay are unknown. An untimed event without a prediction is `unavailable`. A `suppressed` event has no effective time. The original scheduled time remains available for comparison wherever the static feed supplies one.
+
+Trip coverage divides trips with a matched update, including cancellations, by all selected static trips. Timing coverage divides reported and inferred predictions by all arrival and departure slots in those trips **and** trips without updates. The counts distinguish reported, propagated (including trip delays), fallback, unavailable and suppressed events. An empty denominator returns `None`. These fractions describe a snapshot against the full service day, including trips outside the snapshot's prediction horizon.
