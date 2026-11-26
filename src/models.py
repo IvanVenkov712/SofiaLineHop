@@ -115,6 +115,8 @@ class TransferOutcome:
     successful: bool
     waiting_seconds: float | None
     total_duration_seconds: float | None
+    scheduled_arrival_seconds: int | None = None
+    scheduled_departure_seconds: int | None = None
 
 
 @dataclass(frozen=True)
