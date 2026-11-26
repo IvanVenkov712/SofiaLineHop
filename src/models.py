@@ -66,11 +66,12 @@ class TransferConnection:
 
 @dataclass(frozen=True)
 class WalkingRoute:
-    """Ordered OSM node IDs and walking cost between the selected stops."""
+    """Walking cost between snapped nodes and WGS84 (longitude, latitude) vertices."""
 
     node_ids: tuple[int, ...]
     distance_meters: float
     duration_seconds: float
+    geometry: tuple[tuple[float, float], ...] = ()
 
 
 @dataclass(frozen=True)
