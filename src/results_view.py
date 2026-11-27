@@ -69,7 +69,9 @@ def show_results(optimization, outcomes_by_offset, parameters):
         st.subheader("Connection recommendation")
         for role, counts in (("Incoming arrivals", optimization.arrival_sources),
                              ("Outgoing candidates", optimization.departure_sources)):
-            sources = ", ".join(f"{key.replace('_', ' ')}: {value}" for key, value in sorted(counts.items()))
+            names = {"scheduled_fallback": "timetable only", "unavailable": "no usable time"}
+            sources = ", ".join(f"{value} {names.get(key, key.replace('_', ' ').lower())}"
+                                for key, value in sorted(counts.items()))
             st.caption(f"{role} · {sources or 'no events'}")
         recommendation = optimization.recommendation
         if recommendation:

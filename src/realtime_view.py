@@ -80,18 +80,20 @@ def operating_schedule(schedule, capture):
     snapshot, as_of, _ = capture
     view = integrate_schedule(schedule, snapshot, as_of=as_of)
     coverage = view.coverage()
-    st.caption(f"Service-day coverage · {coverage.matched_trips}/{coverage.total_trips} trips matched · "
-               f"{coverage.reported_events + coverage.propagated_events}/{coverage.total_events} "
-               "arrival and departure times predicted")
-    if view.issues:
-        with st.expander(f"Snapshot diagnostics ({len(view.issues)})"):
+    with st.expander("Snapshot coverage across the full service day"):
+        st.caption(f"{coverage.matched_trips:,}/{coverage.total_trips:,} trips matched · "
+                   f"{coverage.reported_events + coverage.propagated_events:,}/{coverage.total_events:,} "
+                   "arrival and departure times predicted")
+        if coverage.fallback_events:
+            st.caption(f"{coverage.fallback_events:,} arrival and departure times use the timetable.")
+        if coverage.unavailable_events:
+            st.caption(f"{coverage.unavailable_events:,} arrival and departure times are unavailable.")
+        if view.issues:
+            st.caption(f"Snapshot diagnostics ({len(view.issues):,})")
             st.text("\n".join(view.issues[:20]))
             if len(view.issues) > 20:
                 st.caption("Showing the first 20 diagnostics.")
     if not coverage.matched_trips:
         st.warning("No usable Trip Updates match this service date and timetable.")
         return None
-    if coverage.fallback_events or coverage.unavailable_events:
-        st.warning(f"Incomplete timing coverage. {coverage.fallback_events} events use timetable times. "
-                   f"{coverage.unavailable_events} have no usable time.")
     return view

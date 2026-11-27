@@ -79,7 +79,8 @@ def test_realtime_workflow(app, monkeypatch):
     assert comparison.columns[:2].tolist() == ["Scheduled", "Realtime-informed"]
     assert comparison.iloc[2, 0] > comparison.iloc[2, 1] > comparison.iloc[2, 2]
     assert any("Mean wait changes" in m.value for m in app.markdown)
-    assert any("Incomplete timing coverage" in w.value for w in app.warning)
+    assert any("Outgoing candidates · 1 timetable only" in c.value for c in app.caption)
+    assert not any("Incomplete timing coverage" in w.value for w in app.warning)
 
     monkeypatch.setattr(realtime_view, "time", lambda: epoch + 91)
     app.run()
