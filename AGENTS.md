@@ -3,6 +3,11 @@
 
 Digital twin for public transport transfers in Sofia.
 
+Be concise and technically precise.
+Avoid filler, unnecessary explanations, and repetition.
+Preserve code quality and correctness.
+Do not omit important trade-offs, risks, or warnings.
+
 ## Overview
 
 SofiaLineHop is an urban digital twin prototype designed to model,

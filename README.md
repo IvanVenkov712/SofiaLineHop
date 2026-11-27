@@ -83,6 +83,33 @@ For the **tram 18** example, check the first arrival by hand. The tram arrives a
 
 For the **trolleybus** example, both columns include the two-minute arrival delay. Their difference isolates the effect of shifting the tram timetable. For the **metro interchange**, use the map to discuss what the 128 m represents. The model measures a path between snapped map nodes and omits the stairs, platforms and corridors a passenger may use underground.
 
+## GeoPackage storage
+
+Choose **Download GeoPackage** below the map to save the selected stops and walking transfer. The download uses the displayed route, service date and walking speed. For a snapshot that also includes the routable pedestrian graph, use the Python API with an existing schedule, connection and calculated walk.
+
+```python
+from src.geopackage import StoredTransfer, read_geopackage, write_geopackage
+
+path = "data/processed/transfers.gpkg"
+record = StoredTransfer(connection, walk, schedule.service_date, walking_speed_mps)
+write_geopackage(path, schedule.stops.values(), [record], network=graph)
+snapshot = read_geopackage(path)
+origin = snapshot.stops[record.connection.incoming.stop_id]
+restored_walk = snapshot.transfers[0].walk
+restored_graph = snapshot.network
+```
+
+| Layer | Geometry and CRS | Attributes and interpretation |
+| --- | --- | --- |
+| `stops` | Point, EPSG:4326 | GTFS `stop_id` and `stop_name` as text. Coordinates are published longitude and latitude. |
+| `transfer_paths` | Nullable LineString, EPSG:4326 | One row per stored transfer. The `from_` and `to_` fields identify GTFS stops, routes and optional directions. The row stores the optional ISO service date, walking speed in m/s, calculated distance in metres, duration in seconds and ordered graph node IDs. |
+| `pedestrian_nodes` | Point, source graph CRS | Integer `node_id`, including isolated nodes. Node tags are in the `attrs` JSON field. Graph attributes are layer metadata. |
+| `pedestrian_edges` | LineString, source graph CRS | Directed multigraph key `(u, v, edge_key)`, original `length_m` and JSON attributes. Edges without a supplied shape display as endpoint segments. The `has_shape` flag lets the reader restore the original edge attributes. |
+
+Pass `StoredTransfer(connection)` to save a connection before calculating its walk. A calculated walk between stops snapped to the same node retains its node ID, single vertex and zero cost even though its line geometry is null. Walking distances exclude off-network access to the stops.
+
+Each write replaces the entire destination file once all layers have been written. Omit `network` for a compact transfer-only package. The network API accepts SofiaLineHop’s OSMnx directed multigraph with integer IDs and keys, node `x`/`y`, edge `length` and JSON-compatible graph tags. The app continues to use GraphML for its pedestrian cache.
+
 ## Architecture and network models
 
 | Component | Responsibility |

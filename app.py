@@ -2,10 +2,12 @@
 
 from datetime import time
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import folium
 import streamlit as st
 
+from src.geopackage import StoredTransfer, write_geopackage
 from src.gtfs_loader import load_schedule
 from src.models import SimulationParameters
 from src.optimization import optimize_offsets
@@ -52,6 +54,14 @@ def walking_route(origin, destination, speed):
 
 def stop_label(stop):
     return f"{stop.name} ({stop.stop_id})"
+
+
+def transfer_download(origin, destination, transfer):
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / "transfer.gpkg"
+        stops = {stop.stop_id: stop for stop in (origin, destination)}
+        write_geopackage(path, stops.values(), [transfer])
+        return path.read_bytes()
 
 
 @st.cache_data(max_entries=64, show_spinner=False)
@@ -177,6 +187,9 @@ def main():
     st.iframe(map_html(origin, destination, walk.geometry), height=350)
     st.caption(f"Walking route · {walk.distance_meters:.0f} m · {walk.duration_seconds / 60:.1f} min "
                "between pedestrian network nodes.")
+    st.download_button("Download GeoPackage",
+                       data=lambda: transfer_download(origin, destination, StoredTransfer(pair, walk, day, speed)),
+                       file_name="transfer.gpkg", mime="application/geopackage+sqlite3", on_click="ignore")
 
     parameters = SimulationParameters(start_seconds, end_seconds, buffer, arrival, departure)
     shifts = st.slider("Outgoing schedule shifts to evaluate (min)", -15, 15, (-5, 5))

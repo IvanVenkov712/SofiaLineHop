@@ -1,4 +1,6 @@
 pandas
+geopandas>=1.0
+pyogrio>=0.9
 numpy
 osmnx
 scikit-learn
