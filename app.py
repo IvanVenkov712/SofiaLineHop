@@ -10,6 +10,7 @@ from src.gtfs_loader import load_schedule
 from src.models import SimulationParameters
 from src.optimization import optimize_offsets
 from src.pedestrian_network import build_pedestrian_network, find_walking_route
+from src.realtime_view import operating_schedule, snapshot_picker
 from src.results_view import show_results
 from src.simulation import simulate_stochastic_transfers
 from src.transfers import find_transfers
@@ -86,6 +87,12 @@ def main():
     st.set_page_config(page_title="SofiaLineHop")
     st.title("SofiaLineHop")
     st.caption("Explore a walking transfer between two Sofia public transport routes.")
+    mode = st.radio("Operating conditions", ["Scheduled", "Realtime-informed"], horizontal=True)
+    realtime = mode == "Realtime-informed"
+    capture = None
+    if realtime:
+        with st.expander("GTFS Realtime snapshot", expanded=True):
+            capture = snapshot_picker()
     date_col, start_col, end_col = st.columns(3)
     day = date_col.date_input("Service date")
     start = start_col.time_input("From", time(7))
@@ -108,6 +115,12 @@ def main():
         st.error(f"Could not read the GTFS timetable: {exc}")
         return
 
+    conditions = schedule
+    snapshot_key = None
+    if capture:
+        conditions = operating_schedule(schedule, capture, start_seconds, end_seconds)
+        if conditions is not None:
+            snapshot_key = (capture[0], capture[2], conditions.issues)
     if len(directions) < 2:
         st.info("Fewer than two routes operate on this service date. Choose another date.")
         return
@@ -145,6 +158,8 @@ def main():
     origin = schedule.stops[pair.incoming.stop_id]
     destination = schedule.stops[pair.outgoing.stop_id]
     with st.expander("Simulation parameters"):
+        if realtime:
+            st.caption("What-if delays are added to the modeled arrival and departure times.")
         left, right = st.columns(2)
         speed = left.number_input("Walking speed (m/s)", min_value=0.1, value=1.4, step=0.1)
         buffer = right.number_input("Minimum boarding buffer (s)", min_value=0, value=0)
@@ -162,18 +177,19 @@ def main():
     parameters = SimulationParameters(start_seconds, end_seconds, buffer, arrival, departure)
     shifts = st.slider("Outgoing schedule shifts to evaluate (min)", -15, 15, (-5, 5))
     st.caption("Evaluate each whole-minute shift in the range and the original schedule.")
-    selection = (day, version, pair, parameters, walk, shifts)
-    if st.button("Run simulation", type="primary"):
-        optimization = optimize_offsets(schedule, pair, walk, parameters,
+    selection = (day, version, pair, parameters, walk, shifts, mode, snapshot_key)
+    ready = not realtime or (capture is not None and conditions is not None)
+    if st.button("Run simulation", type="primary", disabled=not ready) and ready:
+        optimization = optimize_offsets(conditions, pair, walk, parameters,
                                         min_offset_seconds=60 * shifts[0],
                                         max_offset_seconds=60 * shifts[1], step_seconds=60)
         outcomes = {}
         for offset in {0, optimization.best_offset_seconds}:
             outcomes[offset], = simulate_stochastic_transfers(
-                schedule, pair, walk, parameters, outgoing_offset_seconds=offset)
+                conditions, pair, walk, parameters, outgoing_offset_seconds=offset)
         st.session_state.result = selection, optimization, outcomes
     result = st.session_state.get("result")
-    if result and result[0] == selection:
+    if ready and result and result[0] == selection:
         _, optimization, outcomes = result
         show_results(optimization, outcomes, parameters)
 

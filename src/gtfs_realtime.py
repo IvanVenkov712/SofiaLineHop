@@ -61,6 +61,12 @@ class Snapshot:
             raise RealtimeError("Feed timestamp is later than retrieval")
         object.__setattr__(self, "source_timestamp", timestamp)
 
+    def archive(self) -> str:
+        return json.dumps({
+            "retrieved_at": self.retrieved_at,
+            "protobuf": base64.b64encode(self.payload).decode("ascii"),
+        })
+
     def save(self, path: Path):
         """Atomically save one self-contained archive, including the original bytes."""
         path = Path(path)
@@ -68,21 +74,22 @@ class Snapshot:
         with NamedTemporaryFile(dir=path.parent, delete=False) as temp:
             name = Path(temp.name)
         try:
-            name.write_text(json.dumps({
-                "retrieved_at": self.retrieved_at,
-                "protobuf": base64.b64encode(self.payload).decode("ascii"),
-            }), encoding="utf-8")
+            name.write_text(self.archive(), encoding="utf-8")
             name.replace(path)
         finally:
             name.unlink(missing_ok=True)
 
     @classmethod
     def load(cls, path: Path):
+        return cls.from_archive(Path(path).read_bytes())
+
+    @classmethod
+    def from_archive(cls, data: bytes):
         try:
-            record = json.loads(Path(path).read_text(encoding="utf-8"))
+            record = json.loads(data)
             return cls(base64.b64decode(record["protobuf"], validate=True), record["retrieved_at"])
         except (ValueError, TypeError, KeyError) as exc:
-            raise RealtimeError(f"Invalid snapshot {path}: {exc}") from exc
+            raise RealtimeError(f"Invalid snapshot: {exc}") from exc
 
 
 def fetch_snapshot(*, timeout: float = 10, max_age: int = 90) -> Snapshot:

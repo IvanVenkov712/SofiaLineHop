@@ -33,28 +33,54 @@ def show_results(optimization, outcomes_by_offset, parameters):
     best = optimization.best_offset_seconds
     scenarios = optimization.scenarios
     original = scenarios[0]
+    realtime = optimization.published_reference is not None
+    baseline = "Realtime-informed" if realtime else "Original"
     st.subheader("Simulation results")
     count, rate, wait = st.columns(3)
     attempts = len(outcomes_by_offset[0])
-    count.metric("Original arrival attempts", attempts)
+    count.metric(f"{baseline} arrival attempts", attempts)
     if not attempts:
         st.info("No scheduled arrivals at the selected stop in this interval.")
     else:
-        rate.metric("Original completed transfers", f"{original.successful_rate:.1%}")
+        rate.metric(f"{baseline} completed transfers", f"{original.successful_rate:.1%}")
         mean = _minutes(original.mean_waiting_seconds)
-        wait.metric("Original mean wait", "—" if mean is None else f"{mean:.2f} min")
+        wait.metric(f"{baseline} mean wait", "—" if mean is None else f"{mean:.2f} min")
 
-    st.subheader("Original and optimized schedules")
-    labels = {0: "Original"}
+    st.subheader("Operating conditions compared" if realtime else "Original and optimized schedules")
+    labels = {0: baseline}
     if best:
         labels[best] = f"Optimized ({best / 60:+g} min)"
     else:
-        labels[0] = "Original and optimized (0 min)"
+        labels[0] = f"{baseline} and optimized (0 min)"
     st.caption("The search minimizes mean wait while preserving or improving the original completion rate. "
                "Ties favor the smallest shift, then the earlier departure. If no mean wait is defined, "
                "the search retains the original schedule.")
-    comparison = pd.DataFrame({name: _metric_row(scenarios[offset]) for offset, name in labels.items()})
+    if realtime:
+        comparison = pd.DataFrame({
+            "Scheduled": _metric_row(optimization.published_reference),
+            baseline: _metric_row(original),
+            f"Optimized ({best / 60:+g} min)": _metric_row(scenarios[best]),
+        })
+        st.caption("All three conditions use the same incoming arrivals and hypothetical delay settings.")
+    else:
+        comparison = pd.DataFrame({name: _metric_row(scenarios[offset]) for offset, name in labels.items()})
     st.dataframe(comparison, width="stretch")
+    if realtime:
+        st.subheader("Connection recommendation")
+        for role, counts in (("Incoming arrivals", optimization.arrival_sources),
+                             ("Outgoing candidates", optimization.departure_sources)):
+            sources = ", ".join(f"{key.replace('_', ' ')}: {value}" for key, value in sorted(counts.items()))
+            st.caption(f"{role} · {sources or 'no events'}")
+        recommendation = optimization.recommendation
+        if recommendation:
+            before, after = recommendation.baseline, recommendation.proposed
+            st.write(recommendation.action)
+            st.write(f"Mean wait changes from {before.mean_waiting_seconds:.1f} to "
+                     f"{after.mean_waiting_seconds:.1f} s. Completion changes from "
+                     f"{before.successful_rate:.1%} to {after.successful_rate:.1%}.")
+        else:
+            st.info("A recommendation requires realtime evidence for this connection and "
+                    "a completed transfer with a defined mean wait.")
 
     if attempts:
         st.subheader("Waiting time distribution")
@@ -104,5 +130,5 @@ def show_results(optimization, outcomes_by_offset, parameters):
              "the boarding buffer. Completion and incompletion rates cover all attempts. The intended "
              "connection miss rate covers only arrivals with a feasible scheduled connection.")
     st.write("These hypothetical shifts apply to this connection and service window. Results depend on "
-             "timetable and pedestrian map quality. The model omits live vehicle observations, passenger "
-             "demand, capacity and effects on other connections.")
+             "timetable and pedestrian map quality. The model omits passenger demand, capacity "
+             "and effects on other connections.")
