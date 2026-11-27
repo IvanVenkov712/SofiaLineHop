@@ -10,7 +10,7 @@ from src.gtfs_loader import load_schedule
 from src.models import SimulationParameters
 from src.optimization import optimize_offsets
 from src.pedestrian_network import build_pedestrian_network, find_walking_route
-from src.realtime_view import operating_schedule, snapshot_picker
+from src.realtime_view import align_snapshot_interval, operating_schedule, snapshot_picker
 from src.results_view import show_results
 from src.simulation import simulate_stochastic_transfers
 from src.transfers import find_transfers
@@ -93,10 +93,14 @@ def main():
     if realtime:
         with st.expander("GTFS Realtime snapshot", expanded=True):
             capture = snapshot_picker()
+        if capture:
+            align_snapshot_interval(capture[0].source_timestamp)
     date_col, start_col, end_col = st.columns(3)
-    day = date_col.date_input("Service date")
-    start = start_col.time_input("From", time(7))
-    end = end_col.time_input("Until (exclusive)", time(9))
+    st.session_state.setdefault("start_time", time(7))
+    st.session_state.setdefault("end_time", time(9))
+    day = date_col.date_input("Service date", key="service_date")
+    start = start_col.time_input("From", key="start_time")
+    end = end_col.time_input("Until (exclusive)", key="end_time")
     start_seconds, end_seconds = seconds(start), seconds(end)
     if end < start:
         end_seconds += 86400
@@ -118,7 +122,7 @@ def main():
     conditions = schedule
     snapshot_key = None
     if capture:
-        conditions = operating_schedule(schedule, capture, start_seconds, end_seconds)
+        conditions = operating_schedule(schedule, capture)
         if conditions is not None:
             snapshot_key = (capture[0], capture[2], conditions.issues)
     if len(directions) < 2:

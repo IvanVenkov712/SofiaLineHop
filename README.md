@@ -26,7 +26,7 @@ Run the commands from the directory containing `app.py`. The demonstration was t
 
 4. Choose a **Service date** covered by the feed, two routes and a transfer stop pair. Expand **Simulation parameters**, set the outgoing shift range and click **Run simulation**. After changing a setting, click the button again. The results include the route map, original and optimized metrics, a wait histogram, interval comparisons and a table of all evaluated shifts.
 
-   For a snapshot experiment, select **Realtime-informed**. Fetch Trip Updates from the live feed or upload a saved snapshot JSON. **Save snapshot** downloads a live capture for later replay. Choose a service date covered by the matching static timetable and an interval entirely within 90 seconds before to one hour after the source timestamp. The results compare scheduled, realtime-informed and optimized KPIs under the same hypothetical delays. The recommendation reports the outgoing shift, mean wait and completion rate for the selected connection.
+   For a snapshot experiment, select **Realtime-informed**. Fetch Trip Updates from the live feed or upload a saved snapshot JSON. **Save snapshot** downloads a live capture for later replay. The app automatically selects a compatible service date and interval when needed. You can narrow the interval within the snapshot forecast window. The results compare scheduled, realtime-informed and optimized KPIs under the same hypothetical delays. The recommendation reports the outgoing shift, mean wait and completion rate for the selected connection.
 
 Run the full automated suite from the same environment with `python -m pytest`. Its fixtures supply local timetables and pedestrian graphs.
 

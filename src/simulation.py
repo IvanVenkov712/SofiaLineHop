@@ -81,12 +81,16 @@ class RealtimeEvents(TransferEvents):
     departure_conditions: dict[ScheduledEvent, tuple[int | None, str]]
 
 
-def validate_realtime_window(service_date, source_timestamp, start, end):
+def realtime_window(service_date, source_timestamp):
     origin = service_day_origin(service_date)
     # A local forecast experiment starts near capture and spans at most the
     # next hour. Epoch comparison also works for archived and 24+ hour trips.
-    if not (0 <= start < end and start >= source_timestamp - origin - 90
-            and end <= source_timestamp - origin + 3600):
+    return source_timestamp - origin - 90, source_timestamp - origin + 3600
+
+
+def validate_realtime_window(service_date, source_timestamp, start, end):
+    first, last = realtime_window(service_date, source_timestamp)
+    if not (max(0, first) <= start < end <= last):
         raise ValueError("realtime window must fall within 90 s before to 1 h after the snapshot")
 
 

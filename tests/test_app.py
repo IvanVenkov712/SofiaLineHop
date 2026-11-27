@@ -68,8 +68,11 @@ def test_realtime_workflow(app, monkeypatch):
     app.radio[0].set_value("Realtime-informed").run()
     assert app.button[-1].disabled
     app.button[0].click().run()
-    assert any("Incompatible service date or period" in w.value for w in app.warning)
+    assert app.time_input[0].value == time(7, 59)
+    assert app.time_input[1].value == time(9)
+    assert not app.button[-1].disabled
     app.time_input[0].set_value(time(8)).run()
+    assert app.time_input[0].value == time(8)
     app.button[-1].click().run()
     assert not app.exception
     comparison = app.dataframe[0].value
@@ -87,6 +90,8 @@ def test_realtime_workflow(app, monkeypatch):
     app.button[-1].click().run()
     assert not app.exception and app.metric
     app.date_input[0].set_value(day + timedelta(days=1)).run()
-    assert app.button[-1].disabled and not app.metric
+    assert app.date_input[0].value == day
+    assert app.time_input[0].value == time(7, 59)
+    assert not app.button[-1].disabled and not app.metric
     app.file_uploader[0].set_value(("bad.json", b"{}", "application/json")).run()
     assert app.error and app.button[-1].disabled

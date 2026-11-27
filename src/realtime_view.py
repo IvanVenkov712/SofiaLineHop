@@ -1,13 +1,13 @@
 """Streamlit controls for live Trip Updates and offline snapshot replay."""
 
-from datetime import datetime
+from datetime import datetime, timedelta, time as clock_time
 from time import time
 
 import streamlit as st
 
 from . import gtfs_realtime as rt
 from .realtime_schedule import integrate_schedule
-from .simulation import validate_realtime_window
+from .simulation import realtime_window
 
 
 def timestamp_label(epoch):
@@ -52,15 +52,32 @@ def snapshot_picker():
     return snapshot, as_of, source
 
 
-def operating_schedule(schedule, capture, start, end):
+def align_snapshot_interval(source_timestamp):
+    capture_day = datetime.fromtimestamp(source_timestamp, rt.SOFIA).date()
+    day = st.session_state.get("service_date") or capture_day
+    start = st.session_state.get("start_time")
+    end = st.session_state.get("end_time")
+    if start is not None and end is not None:
+        first, last = realtime_window(day, source_timestamp)
+        start_s = start.hour * 3600 + start.minute * 60 + start.second
+        end_s = end.hour * 3600 + end.minute * 60 + end.second + (86400 if end < start else 0)
+        if first <= start_s < end_s <= last:
+            return
+
+    # Fit the minute-resolution controls inside the forecast, including overnight trips.
+    for day in (capture_day, capture_day - timedelta(days=1), capture_day + timedelta(days=1)):
+        first, last = realtime_window(day, source_timestamp)
+        start_min = max(0, (first + 59) // 60)
+        end_min = last // 60
+        if start_min < 1440 and start_min < end_min:
+            st.session_state.service_date = day
+            st.session_state.start_time = clock_time(*divmod(start_min, 60))
+            st.session_state.end_time = clock_time(*divmod(end_min % 1440, 60))
+            return
+
+
+def operating_schedule(schedule, capture):
     snapshot, as_of, _ = capture
-    try:
-        validate_realtime_window(schedule.service_date, snapshot.source_timestamp, start, end)
-    except ValueError:
-        first = timestamp_label(snapshot.source_timestamp - 90)
-        last = timestamp_label(snapshot.source_timestamp + 3600)
-        st.warning(f"Incompatible service date or period. Choose an interval between {first} and {last}.")
-        return None
     view = integrate_schedule(schedule, snapshot, as_of=as_of)
     coverage = view.coverage()
     st.caption(f"Service-day coverage · {coverage.matched_trips}/{coverage.total_trips} trips matched · "
