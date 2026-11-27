@@ -181,9 +181,14 @@ def main():
     st.iframe(map_html(origin, destination, walk.geometry), height=350)
     st.caption(f"Walking route · {walk.distance_meters:.0f} m · {walk.duration_seconds / 60:.1f} min "
                "between pedestrian network nodes.")
-    st.download_button("Download GeoPackage",
-                       data=lambda: transfer_download(origin, destination, StoredTransfer(pair, walk, day, speed)),
-                       file_name="transfer.gpkg", mime="application/geopackage+sqlite3", on_click="ignore")
+    export = StoredTransfer(pair, walk, day, speed)
+    st.download_button(
+        "Download GeoPackage",
+        data=lambda: transfer_download(origin, destination, export),
+        file_name=f"transfer-{day.isoformat()}.gpkg",
+        mime="application/geopackage+sqlite3",
+        on_click="ignore",
+    )
 
     parameters = SimulationParameters(start_seconds, end_seconds, buffer, arrival, departure)
     shifts = st.slider("Outgoing schedule shifts to evaluate (min)", -15, 15, (-5, 5))

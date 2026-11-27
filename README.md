@@ -85,7 +85,9 @@ For the **trolleybus** example, both columns include the two-minute arrival dela
 
 ## GeoPackage storage
 
-Choose **Download GeoPackage** below the map to save the selected stops and walking transfer. The download uses the displayed route, service date and walking speed. For a snapshot that also includes the routable pedestrian graph, use the Python API with an existing schedule, connection and calculated walk.
+Choose **Download GeoPackage** below the map to save the selected stops and walking transfer. In the [QGIS Browser panel](https://docs.qgis.org/3.44/en/docs/user_manual/introduction/browser.html), expand the downloaded file and add either layer independently. Use `stops` for the published stop positions and `transfer_paths` for the walking line and its attribute table, which contains the route and stop IDs, service date, walking speed, distance and duration.
+
+For a snapshot that also includes the routable pedestrian graph, use the Python API with an existing schedule, connection and calculated walk.
 
 ```python
 from src.geopackage import StoredTransfer, read_geopackage, write_geopackage
