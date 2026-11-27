@@ -130,7 +130,8 @@ def show_results(optimization, outcomes_by_offset, parameters):
              "Boarding requires enough time to walk and meet the buffer before an in-window departure.")
     st.write("Wait and duration cover completed transfers only. Wait starts after walking and includes "
              "the boarding buffer. Completion and incompletion rates cover all attempts. The intended "
-             "connection miss rate covers only arrivals with a feasible scheduled connection.")
+             "connection miss rate covers arrivals with a modeled arrival time and a feasible scheduled "
+             "connection. A skipped or canceled intended departure counts as missed.")
     st.write("These hypothetical shifts apply to this connection and service window. Results depend on "
              "timetable and pedestrian map quality. The model omits passenger demand, capacity "
              "and effects on other connections.")

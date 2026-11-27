@@ -31,7 +31,9 @@ def feed(tmp_path):
 
 
 def test_schedule_records(feed):
+    (feed / "feed_info.txt").write_text("feed_version\n001\n")
     schedule = load_schedule(feed, MONDAY)
+    assert schedule.feed_version == "001"
     assert schedule.service_date == MONDAY
     assert schedule.stops["001"].name == "Square, Sofia"
     assert schedule.stops["002"].longitude == 23.4

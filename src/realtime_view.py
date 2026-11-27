@@ -78,7 +78,11 @@ def align_snapshot_interval(source_timestamp):
 
 def operating_schedule(schedule, capture):
     snapshot, as_of, _ = capture
-    view = integrate_schedule(schedule, snapshot, as_of=as_of)
+    try:
+        view = integrate_schedule(schedule, snapshot, as_of=as_of)
+    except rt.RealtimeError as exc:
+        st.error(f"Cannot integrate Trip Updates. {exc}")
+        return None
     coverage = view.coverage()
     with st.expander("Snapshot coverage across the full service day"):
         st.caption(f"{coverage.matched_trips:,}/{coverage.total_trips:,} trips matched · "

@@ -28,7 +28,7 @@ def summarize_transfers(
     Mean, median, maximum, population standard deviation and linear percentiles
     use completed waits in seconds. Mean duration uses the same completions.
     Completion and incompletion rates divide by all attempts. The intended
-    connection miss rate divides by attempts with an intended departure.
+    connection miss rate divides by attempts with a modeled arrival and an intended departure.
     """
     levels = _percentile_levels(percentiles)
     waits: list[float] = []

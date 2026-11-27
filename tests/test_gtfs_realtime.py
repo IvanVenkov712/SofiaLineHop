@@ -1,6 +1,7 @@
 ﻿"""Offline GTFS Realtime adapter tests using the official protobuf messages."""
 
 from datetime import date, datetime
+from dataclasses import replace
 from io import BytesIO
 from urllib.error import HTTPError
 
@@ -111,6 +112,22 @@ def test_canceled_trip(feed, schedule):
     updates, issues = rt.match_updates(snapshot(feed), schedule)
     assert not issues
     assert updates["001"].relationship == "CANCELED" and not updates["001"].visits
+
+
+def test_declared_feed_version_conflict(feed, schedule):
+    feed.header.feed_version = "001"
+    capture = snapshot(feed)
+    for version in (None, "001"):
+        _, issues = rt.match_updates(capture, replace(schedule, feed_version=version))
+        assert not issues
+    with pytest.raises(rt.RealtimeError, match="feed_version"):
+        rt.match_updates(capture, replace(schedule, feed_version="002"))
+
+
+def test_future_trip_measurement_remains_invalid_on_later_rerun(feed, schedule):
+    feed.entity[0].trip_update.timestamp = NOW + 5
+    updates, issues = rt.match_updates(snapshot(feed), schedule, as_of=NOW + 10)
+    assert not updates and "future" in issues[0]
 
 
 @pytest.mark.parametrize("failure", [TimeoutError(), HTTPError(rt.TRIP_UPDATES_URL, 503, "Unavailable", {}, None)])

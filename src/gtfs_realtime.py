@@ -203,6 +203,9 @@ def match_updates(snapshot: Snapshot, schedule: Schedule, *, as_of: int | None =
     as_of = snapshot.retrieved_at if as_of is None else as_of
     _check_age(snapshot, as_of, max_age)
     feed = _feed(snapshot.payload)
+    declared_version = getattr(feed.header, "feed_version", "")
+    if declared_version and schedule.feed_version and declared_version != schedule.feed_version:
+        raise RealtimeError("Trip Updates feed_version does not match the static timetable")
     trips = {trip.trip_id: trip for trip in schedule.trips}
     entity_ids = Counter(entity.id for entity in feed.entity)
     # Multiple dated instances may legitimately share the static trip ID.
@@ -252,7 +255,8 @@ def match_updates(snapshot: Snapshot, schedule: Schedule, *, as_of: int | None =
             issues.append(f"{key}: service date, route or direction mismatch")
             continue
         timestamp = _optional(update, "timestamp")
-        if timestamp is not None and not 0 <= as_of - timestamp <= max_age:
+        if timestamp is not None and (timestamp > snapshot.source_timestamp
+                                      or not 0 <= as_of - timestamp <= max_age):
             issues.append(f"{key}: stale or future trip update")
             continue
         relationship = descriptor.ScheduleRelationship.Name(descriptor.schedule_relationship)

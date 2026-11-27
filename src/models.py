@@ -49,6 +49,7 @@ class Schedule:
     stops: dict[str, Stop]
     routes: dict[str, Route]
     trips: tuple[Trip, ...]
+    feed_version: str | None = None
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 ﻿# SofiaLineHop
 
-SofiaLineHop is an academic prototype for studying one transfer between two Sofia public transport lines. It combines a scheduled arrival, a walk between stops and a scheduled departure. The Streamlit app shows the walking route and compares the published timetable with hypothetical shifts to the outgoing service.
+SofiaLineHop studies a transfer between two Sofia public transport lines. GTFS Static defines the service and passenger cohort. OpenStreetMap supplies the walking path. GTFS Realtime Trip Updates supply predictions and service changes for matched visits. The Streamlit app compares the published timetable, conditions at capture and hypothetical shifts to the outgoing service.
 
 ## Install and run
 
@@ -38,7 +38,38 @@ Run the full automated suite from the same environment with `python -m pytest`. 
 
 **For an exact replay**, copy both `data/raw/gtfs/` and `data/processed/pedestrian/` with their filenames to the demonstration machine. Git excludes the datasets. New downloads can change stops, paths and results. The reference GTFS ZIP has SHA-256 `A35C31BFBB2AC127CD80E586451839CE2D6A1B5E78DF804E25EB28823639BF06`. The reference GraphML has SHA-256 `E0122AE06337CB0C5CEBD16E8EDA36B68BB9642C29062D805BBF212521365A14` and contains 82,057 nodes and 222,118 directed edges. The demonstration used OSMnx 2.2.0, NetworkX 3.7 and Streamlit 1.67.0.
 
-## Three demonstration scenarios
+## Reproduce the three-source experiments
+
+After installing the dependencies, run these commands from the repository root. The ZIP contains the original static tables used by the experiment, the original Trip Updates capture in the app's JSON archive format, and a central Sofia GraphML extract. The replay works offline and leaves the app's own datasets in place.
+
+```sh
+python -m zipfile -e demos/sofia-20261127.zip data/processed/demo-20261127
+python -m demos.replay
+```
+
+**Frozen inputs.** The ZIP SHA-256 is `2c605d94925e09c8ac448d7b788053d9057632a5445a565e6da2734e89529566`. Sofia Traffic published the snapshot on 27 November 2026 at 12:02:46 Europe/Sofia. Retrieval followed at 12:02:47. The raw protobuf SHA-256 is `3358495286e461ac2b539714bffc8a52e76fbad59d8fb434dd4bfc51d5a6195b`. The map extract retains 2,343 nodes and 6,348 edges from the cached city graph. Its extent is 23.304–23.327° E and 42.691–42.704° N. Both graph sizes produced identical walk lengths and displayed results for the two selected pairs. The run used gtfs-realtime-bindings 3.0.0, protobuf 7.36.2 and NumPy 2.5.5.
+
+**Data credits.** The timetable and Trip Updates are from Sofia Municipality and the Urban Mobility Centre. The bundle selects static tables and preserves the captured protobuf. The walking graph extract derives from © OpenStreetMap contributors and is available under the Open Database License. [Sofia data and CC BY 4.0 terms](https://www.sofia.bg/en/transport-data) · [OpenStreetMap data and ODbL terms](https://www.openstreetmap.org/copyright)
+
+**Shared controls.** Use 27 November 2026, 12:03–13:00 Sofia time, all directions, 500 m path limit, 100 m snap limit, 1.4 m/s walk, 30 s boarding buffer and zero added outgoing delay. Each comparison uses the same five incoming visits on its selected connection. Each offset search evaluates −300 through +300 s in 60 s steps. Fixed delays and a single repetition make these runs deterministic.
+
+| Experiment | Controlled comparison | Completed | Mean wait after walking | Missed intended departures |
+| --- | --- | --- | --- | --- |
+| 1. Timetable versus forecast | Tram 18 to metro M1, `TM1307` to `M7`, 189.81 m walk. Replace published times with the snapshot, with zero added delays and shift. | 4/5 in both | 180.67 → 219.92 s | 0/4 in both |
+| 2. Incoming delay | Trolleybus 1 to tram 1, `TB0283` to `TM1269`, 476.22 m walk. Keep the snapshot and zero shift. Add 120 s to each incoming arrival. | 4/5 in both | 319.85 → 379.85 s | 0/4 → 1/4 |
+| 3. What-if schedule optimization | Keep experiment 2's snapshot and 120 s disturbance. Compare zero shift with the winning tram departure shift of **240 s later**. | 4/5 in both | 379.85 → 259.85 s | 1/4 → 0/4 |
+
+In experiment 1, the feed predicted the scheduled 12:10 tram arrival 157 s early. Three of the five arrivals had reported times. The other two arrivals and all candidate metro departures used the timetable. In experiment 2, all five arrival times were reported. The extra 120 s is a hypothetical disturbance. One passenger missed the intended departure but could still board within the window. In experiment 3, the optimizer selected the shift by mean wait subject to completion. The intended miss rate is a separate outcome.
+
+**Replay in Streamlit.** Use the city graph and matching static release described above. Select **Realtime-informed**, **Saved snapshot**, and upload the extracted `1795773766.json`. Set the shared controls, then select `TM34` / `M1` for experiment 1 or `TB10` / `TM27` for experiments 2 and 3. Select the stop IDs in the table. Click **Run simulation** after each delay change. Compare the scheduled and realtime columns for experiment 1, the zero-offset realtime rows across runs for experiment 2, and the zero and winning offsets in the delayed run for experiment 3.
+
+**Validation.** The full test suite passed 117 tests under Python 3.13.7. A separate Streamlit AppTest run uploaded the real archive, selected both connections against the city graph and reproduced the CLI mean waits and completion rates. It checked the result table, map component and both charts. Browser tile rendering and actual walking times were outside that check.
+
+**Coverage and freshness.** Of 1,327 captured entities, 1,323 matched the day's 16,262 trips. Three had no matching active trip and one measurement was 93 s old. Across 758,330 arrival/departure slots, 49,866 times were reported, 3,340 inferred and 705,124 used the timetable. These counts cover the full service day. A single capture cannot establish forecast accuracy, actual passenger outcomes or the provider's update cadence.
+
+The app reads static files after local replacement and caches schedules by service date and file modification times. OSMnx downloads on a cache miss. To fetch current map data, set `osmnx.settings.use_cache = False` in the rebuild process, call `build_pedestrian_network(refresh=True)`, then restart the app to clear in-memory graph and route caches. A rebuild with the default settings can reuse OSMnx's HTTP cache. The cached Overpass response records an OSM base timestamp of 26 November 2026 at 18:45:27 UTC. The city graph was built that day. Its creation date does not establish the survey date of any edge. Live Trip Updates refresh on button press. Each app rerun checks freshness. An idle browser has no polling timer. The 90 s threshold and one-hour forecast horizon are application settings, independent of publisher cadence. [Sofia Trip Updates endpoint](https://gtfs.sofiatraffic.bg/api/v1/trip-updates)
+
+## Scheduled-only demonstration scenarios
 
 Use **26 November 2026**, **07:00–08:00**, **All directions** for both routes, a **500 m** maximum walking distance, **1.4 m/s** walking speed and a **30 s** boarding buffer. Set the outgoing departure delay to **0 s** and the shift slider to **−5 through +5 minutes**. Use the incoming delay in the table. Match the IDs in parentheses in the route and stop selectors, especially for the two lines numbered 1.
 
@@ -59,6 +90,8 @@ For the **trolleybus** example, both columns include the two-minute arrival dela
 | `src/gtfs_loader.py`, `src/models.py` | Validate GTFS tables and build a service-day schedule of stops, routes, trips and ordered stop visits. Preserve IDs as strings and store times in seconds from the service-day origin, including times beyond 24:00. |
 | `src/pedestrian_network.py` | Load or build a directed NetworkX multigraph. Nodes have WGS84 coordinates and edges have lengths in metres. Snap stops to nearest nodes and find a shortest walking path by edge length. |
 | `src/transfers.py` | For two distinct routes and optional directions, identify alighting and boarding stops, then search from each distinct origin node up to the distance limit. For a selected pair, extract its timed arrival and departure visits. |
+| `src/gtfs_realtime.py`, `src/realtime_schedule.py` | Fetch or replay a full snapshot, match dated trips and stop visits, overlay event times and service relationships on the static schedule, and track provenance and coverage. |
+| `src/realtime_view.py` | Select live or archived input, check freshness, align the service window and display integration diagnostics. |
 | `src/simulation.py` | Match scheduled or delayed arrivals to feasible departures and record individual outcomes. |
 | `src/analytics.py`, `src/optimization.py` | Summarize outcomes, evaluate local timetable offsets and select the best eligible scenario. |
 | `app.py`, `src/results_view.py` | Collect inputs, cache timetables and routes, render the Folium map and display results with pandas and Plotly. |
@@ -97,7 +130,7 @@ metrics = summarize_transfers(chain.from_iterable(runs))
 | Waiting time variability | Population standard deviation of completed waits. P50, P90 and P95 use linear interpolation at rank `(n − 1) × p / 100` in the sorted waits. |
 | Mean total transfer duration | Mean elapsed time from actual arrival to actual boarded departure, over completions. |
 | Successful and incomplete rates | Completed and uncompleted attempts, respectively, divided by all attempts. The API also calls the incomplete rate `missed_rate`. |
-| Missed intended connection rate | Fraction of attempts with a feasible scheduled departure whose intended vehicle actually left before the passenger was ready. Intention is computed after the scenario offset and before delays. An attempt may miss that vehicle and complete on a later one. |
+| Missed intended connection rate | Among attempts with a modeled arrival and a feasible intended departure on the offset timetable, the fraction whose intended visit was suppressed or left before the passenger was ready. A later boarding can still complete the transfer. An intended vehicle delayed beyond the horizon counts as catchable if the passenger would be ready. |
 
 Undefined statistics return `None`. The API reports seconds and fractions. The UI shows minutes and percentages. Interval summaries group by **scheduled** arrival in bins aligned to service-day midnight. The UI offers 15, 30 and 60 minutes. Pooled stochastic summaries give each attempt equal weight across repetitions.
 
@@ -111,8 +144,8 @@ The Python entry point `optimize_offsets` accepts integer-second bounds and step
 
 ## Known limitations
 
-- Results describe scheduled stop visits. The model omits passenger counts, capacity, observed delays, traffic correlations and delay propagation along a trip.
-- The walking estimate excludes stop-to-node access distances, accessibility constraints, GTFS station pathways and operator rules in `transfers.txt`. The buffer is a user assumption.
+- Results describe modeled stop visits. Realtime predictions can propagate along a trip. The model omits passenger counts, capacity, traffic correlations and independent verification of vehicle movements.
+- The walking estimate excludes stop-to-node access distances, accessibility constraints, GTFS station pathways and operator rules in `transfers.txt`. The buffer is a user assumption. The prototype treats conditional pickup and drop-off as available. It does not route to reassigned platforms or apply realtime stop-property overrides. The capture contained no such overrides.
 - **All directions** pools visits on the selected line at the chosen stop. Where the feed omits direction IDs, the app cannot distinguish directions. A traveler with a particular destination may have fewer boarding options.
 - The end of the observation window affects completion rates. A passenger who could board just after the horizon counts as incomplete. Waiting-time summaries omit such passengers.
 - The search evaluates one connection over one time window. It does not model downstream transfers, fleet circulation or network-wide feasibility. The measured improvements are hypothetical.
@@ -140,6 +173,8 @@ trips, issues = match_updates(replay, schedule)
 ```
 
 The archive contains the original protobuf bytes and the retrieval timestamp. Matching returns explicit updates by static trip ID and diagnostics for rejected records. Each reported visit carries its static stop sequence, relationship, and separate arrival and departure predictions. Event timestamps are Unix seconds. Signed delays use the scheduled event where available. When both time and delay are reported, the absolute time takes precedence and the reported delay is retained separately. Omitted stops have no explicit prediction in this adapter.
+
+If both feeds declare a static feed version, mismatched versions block integration. This capture omitted the optional realtime header version. Its compatibility evidence comes from the service calendar, trip and visit matches. When a trip ID is absent, matching requires a unique route, direction, service date and start time, stop IDs and absolute predictions for reported timings. Unknown trips, unsupported trip relationships and ambiguous visits generate diagnostics. The model cannot infer the path of an added or rerouted service. Realtime links to OSM through the matched static stop coordinates. No vehicle position feed is required.
 
 Fetching raises `RealtimeError` on network, decoding or freshness failures. Feed and trip freshness default to 90 seconds. Replay evaluates freshness at the original retrieval time. Supply `as_of=int(time.time())` when checking a saved snapshot for live use. Around midnight, also match the previous day's full schedule for trips with after-midnight stop times. Explicit trip dates take priority. For undated trips with absolute predictions the matcher selects the nearest service day by comparing predicted and scheduled visits. For an undated update without absolute predictions, the matcher compares the measurement time with adjacent service-day operating intervals, accounting for a reported trip delay. Ties remain unresolved. GTFS service-day seconds start twelve elapsed hours before local noon in Europe/Sofia, including on clock-change days.
 

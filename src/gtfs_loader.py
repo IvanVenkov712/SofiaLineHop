@@ -211,4 +211,8 @@ def load_schedule(gtfs_directory: Path, service_date: date, *,
                 selected.append(call)
         if selected:
             result.append(Trip(key, route, direction, tuple(selected)))
-    return Schedule(service_date, stops, routes, tuple(result))
+    version = None
+    if (directory / "feed_info.txt").exists():
+        with _table(directory, "feed_info.txt", ()) as rows:
+            version = next(rows, {}).get("feed_version") or None
+    return Schedule(service_date, stops, routes, tuple(result), version)
