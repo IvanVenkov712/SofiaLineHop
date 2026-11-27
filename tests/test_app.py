@@ -7,12 +7,12 @@ import pytest
 from google.transit import gtfs_realtime_pb2 as gtfs
 from streamlit.testing.v1 import AppTest
 
-from src import gtfs_loader, gtfs_realtime, pedestrian_network, realtime_view
+from src import gtfs_loader, gtfs_realtime, pedestrian_network, realtime_view, spatial_cache
 from src.models import Route, Schedule, Stop, StopTime, Trip
 
 
 @pytest.fixture
-def app(monkeypatch):
+def app(monkeypatch, tmp_path):
     stops = {
         "a": Stop("a", "Alight", 42.70, 23.30),
         "b": Stop("b", "Board", 42.70, 23.31),
@@ -26,8 +26,9 @@ def app(monkeypatch):
     for index, stop in enumerate(stops.values()):
         graph.add_node(index, x=stop.longitude, y=stop.latitude)
     graph.add_edge(0, 1, length=100)
-    monkeypatch.setattr(gtfs_loader, "load_schedule", lambda path, day: Schedule(day, stops, routes, trips))
-    monkeypatch.setattr(pedestrian_network, "build_pedestrian_network", lambda: graph)
+    monkeypatch.setattr(gtfs_loader, "load_schedule", lambda path, day, **kw: Schedule(day, stops, routes, trips))
+    monkeypatch.setattr(pedestrian_network, "build_pedestrian_network", lambda **kw: graph)
+    monkeypatch.setattr(spatial_cache, "DEFAULT_PACKAGE", tmp_path / "sofia_transport.gpkg")
 
     return AppTest.from_file("../app.py", default_timeout=30).run()
 

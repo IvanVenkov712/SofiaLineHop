@@ -8,22 +8,22 @@ import folium
 import streamlit as st
 
 from src.geopackage import StoredTransfer, write_geopackage
+from src.spatial_cache import DEFAULT_PACKAGE, cache_version, cached_stops, file_stamp, load_spatial_cache
 from src.gtfs_loader import load_schedule
 from src.models import SimulationParameters
 from src.optimization import optimize_offsets
-from src.pedestrian_network import build_pedestrian_network, find_walking_route
 from src.realtime_view import align_snapshot_interval, operating_schedule, snapshot_picker
 from src.results_view import show_results
 from src.simulation import simulate_stochastic_transfers
-from src.transfers import find_transfers
 
 FEED = Path(__file__).resolve().parent / "data/raw/gtfs"
 SNAP_LIMIT_M = 100
 
 
 @st.cache_resource(max_entries=2, show_spinner="Reading the service-day timetable…")
-def timetable(day, feed_version):
-    schedule = load_schedule(FEED, day)
+def timetable(day, feed_version, stops_stamp, offline_generation):
+    stops = cached_stops(DEFAULT_PACKAGE, stops_stamp)
+    schedule = load_schedule(FEED, day, stops=stops)
     directions = {}
     for trip in schedule.trips:
         available = directions.setdefault(trip.route_id, set())
@@ -32,24 +32,10 @@ def timetable(day, feed_version):
     return schedule, directions
 
 
-@st.cache_resource(show_spinner="Loading Sofia’s walking network. The first download may take several minutes.")
-def network():
-    return build_pedestrian_network()
-
-
-@st.cache_data(max_entries=64, show_spinner="Finding connected stops…")
-def connections(day, version, incoming, outgoing, incoming_direction, outgoing_direction, limit):
-    schedule, _ = timetable(day, version)
-    return find_transfers(
-        schedule, limit, network=network(), incoming_route_id=incoming, outgoing_route_id=outgoing,
-        incoming_direction_id=incoming_direction, outgoing_direction_id=outgoing_direction,
-        max_snap_distance_m=SNAP_LIMIT_M,
-    )
-
-
-@st.cache_data(max_entries=64, show_spinner=False)
-def walking_route(origin, destination, speed):
-    return find_walking_route(network(), origin, destination, speed, max_snap_distance_m=SNAP_LIMIT_M)
+@st.cache_resource(max_entries=1, validate=lambda cache: cache.is_current(),
+                   show_spinner="Loading Sofia’s spatial data. The first download may take several minutes.")
+def spatial_data(path, stops_stamp, _stops):
+    return load_spatial_cache(path, _stops, stops_stamp)
 
 
 def stop_label(stop):
@@ -120,8 +106,10 @@ def main():
         return
 
     try:
-        version = tuple(sorted((p.name, p.stat().st_mtime_ns) for p in FEED.glob("*.txt")))
-        schedule, directions = timetable(day, version)
+        version = tuple(sorted((p.name, file_stamp(p)) for p in FEED.glob("*.txt")))
+        stops_stamp = dict(version).get("stops.txt")
+        offline_generation = cache_version(DEFAULT_PACKAGE) if stops_stamp is None else None
+        schedule, directions = timetable(day, version, stops_stamp, offline_generation)
     except FileNotFoundError as exc:
         st.info(f"Place the unpacked Sofia GTFS feed in data/raw/gtfs/. Missing file: {Path(exc.filename).name}")
         return
@@ -155,7 +143,9 @@ def main():
         outgoing_dir = direction_picker("Outgoing", directions[outgoing])
     limit = st.number_input("Maximum walking distance (m)", min_value=0, value=500, step=50)
     try:
-        pairs = connections(day, version, incoming, outgoing, incoming_dir, outgoing_dir, limit)
+        spatial = spatial_data(DEFAULT_PACKAGE, stops_stamp, schedule.stops)
+        pairs = spatial.connections(schedule, version, incoming, outgoing, incoming_dir,
+                                    outgoing_dir, limit, SNAP_LIMIT_M)
     except Exception as exc:
         st.error(f"Could not load or route on the Sofia walking network. Check the local graph cache "
                  f"and internet connection, then retry. Details: {exc}")
@@ -180,7 +170,11 @@ def main():
         arrival = left.number_input("Incoming arrival delay (s)", min_value=0, value=0)
         departure = right.number_input("Outgoing departure delay (s)", min_value=0, value=0)
 
-    walk = walking_route(origin, destination, speed)
+    try:
+        walk = spatial.walking_route(schedule, pair, speed, SNAP_LIMIT_M)
+    except (OSError, RuntimeError, ValueError) as exc:
+        st.error(f"Could not load or calculate this walking route: {exc}")
+        return
     if walk is None:
         st.warning("No walking route is available for these stops. Select another pair.")
         return

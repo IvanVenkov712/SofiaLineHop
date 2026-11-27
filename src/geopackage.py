@@ -99,6 +99,12 @@ def _transfer_rows(transfers, stops, network):
                LineString(vertices) if len(vertices) > 1 else None)
 
 
+_TRANSFER_FIELDS = {"from_stop_id": "string", "to_stop_id": "string", "from_route_id": "string",
+                    "to_route_id": "string", "from_direction_id": "Int64", "to_direction_id": "Int64",
+                    "service_date": "string", "walking_speed_mps": "float64", "distance_m": "float64",
+                    "duration_s": "float64", "node_ids": "string", "single_vertex": "string"}
+
+
 def write_geopackage(path: str | Path, stops: Iterable[Stop], transfers: Iterable[StoredTransfer],
                      network: nx.MultiDiGraph | None = None) -> None:
     """Atomically replace a snapshot. Optional network uses integer OSM node and edge keys."""
@@ -113,18 +119,14 @@ def write_geopackage(path: str | Path, stops: Iterable[Stop], transfers: Iterabl
         rows = ((s.stop_id, s.name, Point(s.longitude, s.latitude)) for s in points.values())
         _write_layer(staged, "stops", rows, {"stop_id": "string", "stop_name": "string"},
                      WGS84, "Point")
-        fields = {"from_stop_id": "string", "to_stop_id": "string", "from_route_id": "string",
-                  "to_route_id": "string", "from_direction_id": "Int64", "to_direction_id": "Int64",
-                  "service_date": "string", "walking_speed_mps": "float64", "distance_m": "float64",
-                  "duration_s": "float64", "node_ids": "string", "single_vertex": "string"}
         _write_layer(staged, "transfer_paths", _transfer_rows(transfers, points, network),
-                     fields, WGS84, "LineString")
+                     _TRANSFER_FIELDS, WGS84, "LineString")
         if network is not None:
             _write_network(staged, network)
         staged.replace(path)
 
 
-def _read_network(path):
+def read_network(path):
     nodes = gpd.read_file(path, layer="pedestrian_nodes", engine="pyogrio")
     edges = gpd.read_file(path, layer="pedestrian_edges", engine="pyogrio")
     if nodes.crs is None or nodes.crs != edges.crs:
@@ -164,17 +166,34 @@ def _read_transfers(frame):
                              None if pd.isna(row.walking_speed_mps) else row.walking_speed_mps)
 
 
+def read_stops(path):
+    points = gpd.read_file(path, layer="stops", engine="pyogrio")
+    if points.crs != WGS84:
+        raise ValueError("Stops require WGS84 coordinates")
+    return {r.stop_id: Stop(r.stop_id, r.stop_name, r.geometry.y, r.geometry.x)
+            for r in points.itertuples()}
+
+
+def append_cached_transfer(path, key, record, stops):
+    row, = _transfer_rows([record], stops, None)
+    _write_layer(path, "transfer_paths", [(*row[:-1], key, row[-1])],
+                 {**_TRANSFER_FIELDS, "query_key": "string"}, WGS84, "LineString", append=True)
+
+
+def read_cached_transfer(path, fid):
+    frame = gpd.read_file(path, layer="transfer_paths", engine="pyogrio", fids=[fid])
+    record, = _read_transfers(frame)
+    return record
+
+
 def read_geopackage(path: str | Path) -> SpatialSnapshot:
     """Restore stops, connections, walks and the optional routable graph."""
     layers = set(gpd.list_layers(path)["name"])
     graph_layers = {"pedestrian_nodes", "pedestrian_edges"}
     if layers & graph_layers and not graph_layers <= layers:
         raise ValueError("Incomplete pedestrian network in GeoPackage")
-    points = gpd.read_file(path, layer="stops", engine="pyogrio")
     paths = gpd.read_file(path, layer="transfer_paths", engine="pyogrio")
-    if points.crs != WGS84 or paths.crs != WGS84:
-        raise ValueError("Stops and transfer paths require WGS84 coordinates")
-    stops = {r.stop_id: Stop(r.stop_id, r.stop_name, r.geometry.y, r.geometry.x)
-             for r in points.itertuples()}
-    return SpatialSnapshot(stops, list(_read_transfers(paths)),
-                           _read_network(path) if graph_layers <= layers else None)
+    if paths.crs != WGS84:
+        raise ValueError("Transfer paths require WGS84 coordinates")
+    return SpatialSnapshot(read_stops(path), list(_read_transfers(paths)),
+                           read_network(path) if graph_layers <= layers else None)
