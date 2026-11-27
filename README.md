@@ -85,7 +85,9 @@ For the **trolleybus** example, both columns include the two-minute arrival dela
 
 ## GeoPackage storage
 
-Choose **Download GeoPackage** below the map to save the selected stops and walking transfer. In the [QGIS Browser panel](https://docs.qgis.org/3.44/en/docs/user_manual/introduction/browser.html), expand the downloaded file and add either layer independently. Use `stops` for the published stop positions and `transfer_paths` for the walking line and its attribute table, which contains the route and stop IDs, service date, walking speed, distance and duration.
+GeoPackage is an Open Geospatial Consortium (OGC) encoding standard for storing spatial layers and other data in a portable SQLite file. SofiaLineHop uses GeoPandas with GDAL via Pyogrio to persist processed spatial data in `sofia_transport.gpkg` and to exchange selected transfers with desktop GIS tools. [OGC GeoPackage Encoding Standard](https://www.ogc.org/standards/geopackage/)
+
+Choose **Download GeoPackage** below the map to save the selected stops and walking transfer. In QGIS, expand the downloaded file in the Browser panel and add either layer independently. Open the `transfer_paths` attribute table to inspect the route and stop IDs, service date, walking speed, distance and duration. [QGIS Browser panel](https://docs.qgis.org/3.44/en/docs/user_manual/introduction/browser.html)
 
 For a snapshot that also includes the routable pedestrian graph, use the Python API with an existing schedule, connection and calculated walk.
 
@@ -104,7 +106,7 @@ restored_graph = snapshot.network
 | Layer | Geometry and CRS | Attributes and interpretation |
 | --- | --- | --- |
 | `stops` | Point, EPSG:4326 | GTFS `stop_id` and `stop_name` as text. Coordinates are published longitude and latitude. |
-| `transfer_paths` | Nullable LineString, EPSG:4326 | One row per stored transfer. The `from_` and `to_` fields identify GTFS stops, routes and optional directions. The row stores the optional ISO service date, walking speed in m/s, calculated distance in metres, duration in seconds and ordered graph node IDs. |
+| `transfer_paths` | Nullable LineString, EPSG:4326 | `from_stop_id`, `to_stop_id`, `from_route_id` and `to_route_id` are GTFS text IDs. Optional fields are integer direction IDs, ISO `service_date`, numeric `walking_speed_mps`, `distance_m` and `duration_s`, ordered `node_ids` as JSON, and `single_vertex` as JSON for a one-vertex walk. |
 | `pedestrian_nodes` | Point, source graph CRS | Integer `node_id`, including isolated nodes. Node tags are in the `attrs` JSON field. Graph attributes are layer metadata. |
 | `pedestrian_edges` | LineString, source graph CRS | Directed multigraph key `(u, v, edge_key)`, original `length_m` and JSON attributes. Edges without a supplied shape display as endpoint segments. The `has_shape` flag lets the reader restore the original edge attributes. |
 
@@ -116,12 +118,17 @@ The managed package records a schema version and source file sizes and modificat
 
 A missing, unreadable or incompatible package is rebuilt from available local inputs. A valid package can supply stops and the graph even if `stops.txt` or GraphML is absent. Other GTFS timetable tables remain necessary for service-day schedules, simulation and optimization. Rebuilds require readable sources for the affected data. Source detection uses file metadata; after replacing inputs while preserving both size and timestamp, touch the changed file to trigger invalidation.
 
+### GeoPackage validation
+
+Run `python -m pytest` to check the layer registry, SQLite integrity, CRS, geometry and attributes, graph reconstruction, and independent reads of the Streamlit download layers. For format conformance, run `gdal driver gpkg validate --full-check <file.gpkg>` with GDAL 3.13+ and its Python bindings, or use the official `validate_gpkg.py -v -k --extra --warning-as-error <file.gpkg>` sample script. The validator checks the file format. The application tests check routing and transfer semantics. [GDAL GeoPackage validator](https://gdal.org/en/stable/programs/gdal_driver_gpkg_validate.html) · [GDAL sample validators](https://gdal.org/en/stable/api/python/python_samples.html)
+
 ## Architecture and network models
 
 | Component | Responsibility |
 | --- | --- |
 | `src/gtfs_loader.py`, `src/models.py` | Validate GTFS tables and build a service-day schedule of stops, routes, trips and ordered stop visits. Preserve IDs as strings and store times in seconds from the service-day origin, including times beyond 24:00. |
 | `src/pedestrian_network.py` | Load or build a directed NetworkX multigraph. Nodes have WGS84 coordinates and edges have lengths in metres. Snap stops to nearest nodes and find a shortest walking path by edge length. |
+| `src/geopackage.py`, `src/spatial_cache.py` | Write and read spatial feature layers, reconstruct the pedestrian graph, and reuse cached stops, searches and walks across app sessions. |
 | `src/transfers.py` | For two distinct routes and optional directions, identify alighting and boarding stops, then search from each distinct origin node up to the distance limit. For a selected pair, extract its timed arrival and departure visits. |
 | `src/gtfs_realtime.py`, `src/realtime_schedule.py` | Fetch or replay a full snapshot, match dated trips and stop visits, overlay event times and service relationships on the static schedule, and track provenance and coverage. |
 | `src/realtime_view.py` | Select live or archived input, check freshness, align the service window and display integration diagnostics. |
