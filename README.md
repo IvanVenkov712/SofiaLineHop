@@ -34,9 +34,9 @@ Run the full automated suite from the same environment with `python -m pytest`. 
 
 **Timetable.** Sofia’s Urban Mobility Centre publishes the scheduled routes, trips, stop visits and service dates. The demonstration uses static GTFS feed version 1.2 with `feed_start_date=20261126` and `feed_end_date=20271126`. Calendar entries determine which trips actually run on the selected day. [Sofia Municipality transport data](https://www.sofia.bg/en/transport-data)
 
-**Walking network.** On first use OSMnx downloads the walkable network for “Sofia, Bulgaria” from OpenStreetMap, retains disconnected components and saves a GraphML file under `data/processed/pedestrian/`. **Finding connected stops…** can include this download or loading the saved file. Open the app before presenting to populate the cache. Subsequent route selections reuse the graph in memory. The Folium map also uses online tiles and browser assets. [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright)
+**Spatial cache.** On the first transfer search, the app builds `data/processed/sofia_transport.gpkg` from the validated GTFS stops and the local Sofia GraphML file under `data/processed/pedestrian/`. If neither a usable GeoPackage nor a local graph is available, OSMnx downloads the Sofia walking graph, including disconnected components. Later sessions reload stops and the directed graph from the GeoPackage. The Folium map uses online tiles and browser assets. [? OpenStreetMap contributors](https://www.openstreetmap.org/copyright)
 
-**For an exact replay**, copy both `data/raw/gtfs/` and `data/processed/pedestrian/` with their filenames to the demonstration machine. Git excludes the datasets. New downloads can change stops, paths and results. The reference GTFS ZIP has SHA-256 `A35C31BFBB2AC127CD80E586451839CE2D6A1B5E78DF804E25EB28823639BF06`. The reference GraphML has SHA-256 `E0122AE06337CB0C5CEBD16E8EDA36B68BB9642C29062D805BBF212521365A14` and contains 82,057 nodes and 222,118 directed edges. The demonstration used OSMnx 2.2.0, NetworkX 3.7 and Streamlit 1.67.0.
+**For an exact replay**, copy `data/raw/gtfs/` and `data/processed/sofia_transport.gpkg` to the demonstration machine. An existing `data/processed/pedestrian/` GraphML cache can also bootstrap the package offline. Git excludes the datasets. The reference GTFS ZIP has SHA-256 `A35C31BFBB2AC127CD80E586451839CE2D6A1B5E78DF804E25EB28823639BF06`. The reference GraphML has SHA-256 `E0122AE06337CB0C5CEBD16E8EDA36B68BB9642C29062D805BBF212521365A14` and contains 82,057 nodes and 222,118 directed edges. The demonstration used OSMnx 2.2.0, NetworkX 3.7 and Streamlit 1.67.0.
 
 ## Reproduce the three-source experiments
 
@@ -67,7 +67,7 @@ In experiment 1, the feed predicted the scheduled 12:10 tram arrival 157 s early
 
 **Coverage and freshness.** Of 1,327 captured entities, 1,323 matched the day's 16,262 trips. Three had no matching active trip and one measurement was 93 s old. Across 758,330 arrival/departure slots, 49,866 times were reported, 3,340 inferred and 705,124 used the timetable. These counts cover the full service day. A single capture cannot establish forecast accuracy, actual passenger outcomes or the provider's update cadence.
 
-The app reads static files after local replacement and caches schedules by service date and file modification times. OSMnx downloads on a cache miss. To fetch current map data, set `osmnx.settings.use_cache = False` in the rebuild process, call `build_pedestrian_network(refresh=True)`, then restart the app to clear in-memory graph and route caches. A rebuild with the default settings can reuse OSMnx's HTTP cache. The cached Overpass response records an OSM base timestamp of 26 November 2026 at 18:45:27 UTC. The city graph was built that day. Its creation date does not establish the survey date of any edge. Live Trip Updates refresh on button press. Each app rerun checks freshness. An idle browser has no polling timer. The 90 s threshold and one-hour forecast horizon are application settings, independent of publisher cadence. [Sofia Trip Updates endpoint](https://gtfs.sofiatraffic.bg/api/v1/trip-updates)
+The app reads static files after local replacement and caches schedules by service date and file modification times. To fetch current map data, set `osmnx.settings.use_cache = False` in the rebuild process, call `build_pedestrian_network(refresh=True)`, then rerun the app. The changed GraphML file invalidates the processed graph and its derived searches and walks. A rebuild with the default settings can reuse OSMnx's HTTP cache. The cached Overpass response records an OSM base timestamp of 26 November 2026 at 18:45:27 UTC. The city graph was built that day. Its creation date does not establish the survey date of any edge. Live Trip Updates refresh on button press. Each app rerun checks freshness. An idle browser has no polling timer. The 90 s threshold and one-hour forecast horizon are application settings, independent of publisher cadence. [Sofia Trip Updates endpoint](https://gtfs.sofiatraffic.bg/api/v1/trip-updates)
 
 ## Scheduled-only demonstration scenarios
 
@@ -83,12 +83,52 @@ For the **tram 18** example, check the first arrival by hand. The tram arrives a
 
 For the **trolleybus** example, both columns include the two-minute arrival delay. Their difference isolates the effect of shifting the tram timetable. For the **metro interchange**, use the map to discuss what the 128 m represents. The model measures a path between snapped map nodes and omits the stairs, platforms and corridors a passenger may use underground.
 
+## GeoPackage storage
+
+GeoPackage is an Open Geospatial Consortium (OGC) encoding standard for storing spatial layers and other data in a portable SQLite file. SofiaLineHop uses GeoPandas with GDAL via Pyogrio to persist processed spatial data in `sofia_transport.gpkg` and to exchange selected transfers with desktop GIS tools. [OGC GeoPackage Encoding Standard](https://www.ogc.org/standards/geopackage/)
+
+Choose **Download GeoPackage** below the map to save the selected stops and walking transfer. In QGIS, expand the downloaded file in the Browser panel and add either layer independently. Open the `transfer_paths` attribute table to inspect the route and stop IDs, service date, walking speed, distance and duration. [QGIS Browser panel](https://docs.qgis.org/3.44/en/docs/user_manual/introduction/browser.html)
+
+For a snapshot that also includes the routable pedestrian graph, use the Python API with an existing schedule, connection and calculated walk.
+
+```python
+from src.geopackage import StoredTransfer, read_geopackage, write_geopackage
+
+path = "data/processed/transfers.gpkg"
+record = StoredTransfer(connection, walk, schedule.service_date, walking_speed_mps)
+write_geopackage(path, schedule.stops.values(), [record], network=graph)
+snapshot = read_geopackage(path)
+origin = snapshot.stops[record.connection.incoming.stop_id]
+restored_walk = snapshot.transfers[0].walk
+restored_graph = snapshot.network
+```
+
+| Layer | Geometry and CRS | Attributes and interpretation |
+| --- | --- | --- |
+| `stops` | Point, EPSG:4326 | GTFS `stop_id` and `stop_name` as text. Coordinates are published longitude and latitude. |
+| `transfer_paths` | Nullable LineString, EPSG:4326 | `from_stop_id`, `to_stop_id`, `from_route_id` and `to_route_id` are GTFS text IDs. Optional fields are integer direction IDs, ISO `service_date`, numeric `walking_speed_mps`, `distance_m` and `duration_s`, ordered `node_ids` as JSON, and `single_vertex` as JSON for a one-vertex walk. |
+| `pedestrian_nodes` | Point, source graph CRS | Integer `node_id`, including isolated nodes. Node tags are in the `attrs` JSON field. Graph attributes are layer metadata. |
+| `pedestrian_edges` | LineString, source graph CRS | Directed multigraph key `(u, v, edge_key)`, original `length_m` and JSON attributes. Edges without a supplied shape display as endpoint segments. The `has_shape` flag lets the reader restore the original edge attributes. |
+
+Pass `StoredTransfer(connection)` to save a connection before calculating its walk. A calculated walk between stops snapped to the same node retains its node ID, single vertex and zero cost even though its line geometry is null. Walking distances exclude off-network access to the stops.
+
+Each write replaces the entire destination file once all layers have been written. Omit `network` for a compact transfer-only package. The network API accepts SofiaLineHop’s OSMnx directed multigraph with integer IDs and keys, node `x`/`y`, edge `length` and JSON-compatible graph tags. The app manages `sofia_transport.gpkg` automatically. Use a different filename for manual exports.
+
+The managed package records a schema version and source file sizes and modification times. Changing `stops.txt` refreshes the stops and derived results. Replacing GraphML refreshes the network. Search results include empty matches and are keyed by GTFS file versions, service date, routes, directions, walking limit and snap limit. Walks are keyed by date, connection, walking speed and snap limit within that spatial dataset. The app serializes cache writes and publishes a rebuilt package only after all layers and metadata are ready.
+
+A missing, unreadable or incompatible package is rebuilt from available local inputs. A valid package can supply stops and the graph even if `stops.txt` or GraphML is absent. Other GTFS timetable tables remain necessary for service-day schedules, simulation and optimization. Rebuilds require readable sources for the affected data. Source detection uses file metadata; after replacing inputs while preserving both size and timestamp, touch the changed file to trigger invalidation.
+
+### GeoPackage validation
+
+Run `python -m pytest` to check the layer registry, SQLite integrity, CRS, geometry and attributes, graph reconstruction, and independent reads of the Streamlit download layers. For format conformance, run `gdal driver gpkg validate --full-check <file.gpkg>` with GDAL 3.13+ and its Python bindings, or use the official `validate_gpkg.py -v -k --extra --warning-as-error <file.gpkg>` sample script. The validator checks the file format. The application tests check routing and transfer semantics. [GDAL GeoPackage validator](https://gdal.org/en/stable/programs/gdal_driver_gpkg_validate.html) · [GDAL sample validators](https://gdal.org/en/stable/api/python/python_samples.html)
+
 ## Architecture and network models
 
 | Component | Responsibility |
 | --- | --- |
 | `src/gtfs_loader.py`, `src/models.py` | Validate GTFS tables and build a service-day schedule of stops, routes, trips and ordered stop visits. Preserve IDs as strings and store times in seconds from the service-day origin, including times beyond 24:00. |
 | `src/pedestrian_network.py` | Load or build a directed NetworkX multigraph. Nodes have WGS84 coordinates and edges have lengths in metres. Snap stops to nearest nodes and find a shortest walking path by edge length. |
+| `src/geopackage.py`, `src/spatial_cache.py` | Write and read spatial feature layers, reconstruct the pedestrian graph, and reuse cached stops, searches and walks across app sessions. |
 | `src/transfers.py` | For two distinct routes and optional directions, identify alighting and boarding stops, then search from each distinct origin node up to the distance limit. For a selected pair, extract its timed arrival and departure visits. |
 | `src/gtfs_realtime.py`, `src/realtime_schedule.py` | Fetch or replay a full snapshot, match dated trips and stop visits, overlay event times and service relationships on the static schedule, and track provenance and coverage. |
 | `src/realtime_view.py` | Select live or archived input, check freshness, align the service window and display integration diagnostics. |

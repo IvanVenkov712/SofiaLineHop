@@ -138,7 +138,8 @@ def parse_gtfs_time(value):
 
 
 def load_schedule(gtfs_directory: Path, service_date: date, *,
-                  start_seconds: int = 0, end_seconds: int | None = None) -> Schedule:
+                  start_seconds: int = 0, end_seconds: int | None = None,
+                  stops: dict[str, Stop] | None = None) -> Schedule:
     """Load events for a service date, retaining calls with either time in [start, end).
 
     Bounds are seconds from the service-day origin, including values beyond 86400.
@@ -149,7 +150,8 @@ def load_schedule(gtfs_directory: Path, service_date: date, *,
     if start_seconds < 0 or (end_seconds is not None and end_seconds <= start_seconds):
         raise ValueError("expected a nonnegative start and an end greater than the start")
     directory = Path(gtfs_directory)
-    stops, routes = _stops(directory), _routes(directory)
+    stops = _stops(directory) if stops is None else stops
+    routes = _routes(directory)
     known, active = _services(directory, service_date)
     trips = {}
     with _table(directory, "trips.txt", ("trip_id", "route_id", "service_id")) as rows:

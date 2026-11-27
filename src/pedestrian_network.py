@@ -16,6 +16,11 @@ import osmnx as ox
 from .models import Stop, WalkingRoute
 
 
+def graphml_path(cache_dir: str | Path, place: str = "Sofia, Bulgaria") -> Path:
+    key = sha256(place.strip().casefold().encode()).hexdigest()
+    return Path(cache_dir) / f"{key}.graphml"
+
+
 def build_pedestrian_network(
     place: str = "Sofia, Bulgaria",
     *,
@@ -24,8 +29,7 @@ def build_pedestrian_network(
 ) -> nx.MultiDiGraph:
     """Load a cached GraphML graph, or fetch and cache all walking components."""
     directory = Path(cache_dir)
-    key = sha256(place.strip().casefold().encode()).hexdigest()
-    path = directory / f"{key}.graphml"
+    path = graphml_path(directory, place)
     if path.is_file() and not refresh:
         return ox.load_graphml(path)
 

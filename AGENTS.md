@@ -3,6 +3,11 @@
 
 Digital twin for public transport transfers in Sofia.
 
+Be concise and technically precise.
+Avoid filler, unnecessary explanations, and repetition.
+Preserve code quality and correctness.
+Do not omit important trade-offs, risks, or warnings.
+
 ## Overview
 
 SofiaLineHop is an urban digital twin prototype designed to model,
@@ -42,6 +47,7 @@ than a production-ready transportation management system.
 - Pandas
 - NumPy
 - OSMnx
+- GeoPandas and Pyogrio for OGC GeoPackage storage
 - NetworkX
 - Streamlit
 - Folium
@@ -71,6 +77,29 @@ The main components are:
 - Schedule optimization.
 - Interactive visualization.
 
+### GeoPackage storage
+
+The [OGC GeoPackage Encoding Standard](https://www.ogc.org/standards/geopackage/)
+defines a portable SQLite container for spatial layers and attributes.
+`src/geopackage.py` reads and writes feature layers using GeoPandas and GDAL via
+Pyogrio. `src/spatial_cache.py` manages `data/processed/sofia_transport.gpkg`
+to reuse stops, the pedestrian graph, transfer searches and walking routes.
+GTFS timetable tables supply service-day schedules to simulation and optimization.
+
+| Layer | Geometry and CRS | Fields |
+| --- | --- | --- |
+| `stops` | Point, EPSG:4326 | Text `stop_id` and `stop_name`. |
+| `transfer_paths` | Nullable LineString, EPSG:4326 | Text `from_` and `to_` route and stop IDs, optional integer directions, ISO service date, walking speed, distance, duration, and JSON for ordered node IDs and the optional single vertex. |
+| `pedestrian_nodes` | Point, source graph CRS | Integer `node_id`, JSON `attrs` and layer metadata for graph attributes. |
+| `pedestrian_edges` | LineString, source graph CRS | Directed integer `(u, v, edge_key)`, `length_m`, `has_shape` and JSON `attrs`. |
+
+Preserve directed edge keys, isolated nodes, text GTFS IDs and the declared
+CRS of each layer. For a same-node walk, keep the transfer attributes and
+single vertex with null line geometry. Streamlit downloads expose `stops` and
+`transfer_paths` as independently selectable layers in the QGIS Browser panel.
+Run the GeoPackage tests and the GDAL conformance validator when changing
+the storage schema. See the validation commands in README.md.
+
 ## Project Structure
 
     .
@@ -81,6 +110,8 @@ The main components are:
     │   ├── __init__.py
     │   ├── models.py
     │   ├── gtfs_loader.py
+    │   ├── geopackage.py
+    │   ├── spatial_cache.py
     │   ├── pedestrian_network.py
     │   ├── transfers.py
     │   ├── simulation.py
